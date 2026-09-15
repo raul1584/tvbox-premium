@@ -11,6 +11,7 @@ import android.view.View
 import android.view.KeyEvent
 import android.content.Context
 import kotlin.math.abs
+import kotlin.math.min
 
 class MainActivity : Activity() {
 
@@ -67,6 +68,29 @@ class HomeView(context: Context) : View(context) {
         "Avatar"
     )
 
+    // =========================================================
+    // DIMENSIONES RESPONSIVE
+    // =========================================================
+
+    private val sidebarWidth: Float
+        get() = min(width * 0.19f, 300f)
+
+    private val contentLeft: Float
+        get() = sidebarWidth + width * 0.025f
+
+    private val contentRight: Float
+        get() = width - width * 0.025f
+
+    private val contentWidth: Float
+        get() = contentRight - contentLeft
+
+    private val scale: Float
+        get() = min(width / 1920f, height / 1080f).coerceAtLeast(0.65f)
+
+    // =========================================================
+    // DIBUJO PRINCIPAL
+    // =========================================================
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -79,227 +103,297 @@ class HomeView(context: Context) : View(context) {
         drawMovies(canvas)
     }
 
-    // ---------------------------------------------------------
-    // SIDEBAR
-    // ---------------------------------------------------------
+    // =========================================================
+    // SIDEBAR RESPONSIVE
+    // =========================================================
 
     private fun drawSidebar(canvas: Canvas) {
+
+        paint.style = Paint.Style.FILL
 
         paint.color = Color.rgb(4, 18, 35)
 
         canvas.drawRect(
             0f,
             0f,
-            285f,
+            sidebarWidth,
             height.toFloat(),
             paint
         )
 
         // Logo
         paint.color = Color.WHITE
-        paint.textSize = 28f
+        paint.textSize = 28f * scale
         paint.isFakeBoldText = true
 
         canvas.drawText(
             "▶ TVBOX",
-            35f,
-            55f,
+            sidebarWidth * 0.13f,
+            55f * scale,
             paint
         )
 
-        paint.textSize = 14f
         paint.color = Color.rgb(120, 190, 255)
+        paint.textSize = 13f * scale
+        paint.isFakeBoldText = false
 
         canvas.drawText(
             "PREMIUM",
-            91f,
-            76f,
+            sidebarWidth * 0.32f,
+            78f * scale,
             paint
         )
 
-        val startY = 150f
-        val spacing = 65f
+        // Línea decorativa
+        paint.color = Color.rgb(20, 70, 105)
+
+        canvas.drawRect(
+            sidebarWidth * 0.10f,
+            100f * scale,
+            sidebarWidth * 0.90f,
+            101f * scale,
+            paint
+        )
+
+        val startY = 155f * scale
+        val spacing = 65f * scale
 
         sections.forEachIndexed { index, section ->
 
             val y = startY + index * spacing
 
-            // Selección/foco
             if (index == selectedSection) {
 
                 paint.color = Color.rgb(20, 125, 245)
 
                 canvas.drawRoundRect(
                     RectF(
-                        18f,
-                        y - 38f,
-                        260f,
-                        y + 15f
+                        sidebarWidth * 0.07f,
+                        y - 38f * scale,
+                        sidebarWidth * 0.92f,
+                        y + 16f * scale
                     ),
-                    14f,
-                    14f,
+                    14f * scale,
+                    14f * scale,
                     paint
                 )
             }
 
             paint.color = Color.WHITE
-            paint.textSize = 20f
+            paint.textSize = 19f * scale
             paint.isFakeBoldText = index == selectedSection
 
             canvas.drawText(
                 section,
-                55f,
+                sidebarWidth * 0.19f,
                 y,
                 paint
             )
         }
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // HEADER
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun drawHeader(canvas: Canvas) {
 
         paint.color = Color.WHITE
-        paint.textSize = 17f
+        paint.textSize = 17f * scale
         paint.isFakeBoldText = false
 
         canvas.drawText(
             "TVBOX PREMIUM",
-            330f,
-            45f,
+            contentLeft,
+            45f * scale,
             paint
         )
 
         paint.color = Color.rgb(150, 170, 190)
-        paint.textSize = 15f
+
+        paint.textSize = 15f * scale
 
         canvas.drawText(
             "⌕   Buscar",
-            width - 220f,
-            45f,
+            contentRight - 150f * scale,
+            45f * scale,
             paint
         )
 
         canvas.drawText(
             "◯",
-            width - 55f,
-            45f,
+            contentRight - 30f * scale,
+            45f * scale,
             paint
         )
     }
 
-    // ---------------------------------------------------------
-    // HERO
-    // ---------------------------------------------------------
+    // =========================================================
+    // HERO RESPONSIVE
+    // =========================================================
 
     private fun drawHero(canvas: Canvas) {
 
-        val left = 315f
-        val top = 80f
-        val right = width - 35f
-        val bottom = 335f
+        val left = contentLeft
+        val top = 75f * scale
+
+        val right = contentRight
+
+        val heroHeight = min(
+            270f * scale,
+            height * 0.30f
+        )
+
+        val bottom = top + heroHeight
 
         paint.color = Color.rgb(8, 28, 48)
 
         canvas.drawRoundRect(
-            RectF(left, top, right, bottom),
-            18f,
-            18f,
+            RectF(
+                left,
+                top,
+                right,
+                bottom
+            ),
+            20f * scale,
+            20f * scale,
+            paint
+        )
+
+        // Decoración lateral
+        paint.color = Color.rgb(10, 70, 120)
+
+        canvas.drawRoundRect(
+            RectF(
+                right - 260f * scale,
+                top,
+                right,
+                bottom
+            ),
+            20f * scale,
+            20f * scale,
             paint
         )
 
         paint.color = Color.rgb(90, 160, 220)
-        paint.textSize = 15f
+        paint.textSize = 15f * scale
 
         canvas.drawText(
             "CONTENIDO DESTACADO",
-            left + 35f,
-            top + 45f,
+            left + 35f * scale,
+            top + 45f * scale,
             paint
         )
 
         paint.color = Color.WHITE
-        paint.textSize = 40f
+        paint.textSize = 40f * scale
         paint.isFakeBoldText = true
 
         canvas.drawText(
             "TVBOX PREMIUM",
-            left + 35f,
-            top + 100f,
+            left + 35f * scale,
+            top + 105f * scale,
             paint
         )
 
-        paint.textSize = 18f
+        paint.textSize = 18f * scale
         paint.isFakeBoldText = false
 
         canvas.drawText(
             "Tu entretenimiento en un solo lugar.",
-            left + 35f,
-            top + 140f,
+            left + 35f * scale,
+            top + 145f * scale,
             paint
         )
 
-        // Botón VER AHORA
+        // Botón
+        val buttonLeft = left + 35f * scale
+        val buttonTop = top + 175f * scale
+        val buttonRight = buttonLeft + 160f * scale
+        val buttonBottom = buttonTop + 52f * scale
+
         paint.color = Color.rgb(15, 125, 245)
 
         canvas.drawRoundRect(
             RectF(
-                left + 35f,
-                top + 175f,
-                left + 190f,
-                top + 225f
+                buttonLeft,
+                buttonTop,
+                buttonRight,
+                buttonBottom
             ),
-            10f,
-            10f,
+            11f * scale,
+            11f * scale,
             paint
         )
 
         paint.color = Color.WHITE
-        paint.textSize = 16f
+        paint.textSize = 16f * scale
         paint.isFakeBoldText = true
 
         canvas.drawText(
             "▶  VER AHORA",
-            left + 55f,
-            top + 207f,
+            buttonLeft + 20f * scale,
+            buttonTop + 33f * scale,
             paint
         )
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // TV EN VIVO
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun drawChannels(canvas: Canvas) {
 
+        val heroBottom =
+            75f * scale +
+                    min(
+                        270f * scale,
+                        height * 0.30f
+                    )
+
+        val titleY = heroBottom + 45f * scale
+
         paint.color = Color.WHITE
-        paint.textSize = 23f
+        paint.textSize = 23f * scale
         paint.isFakeBoldText = true
 
         canvas.drawText(
             "TV EN VIVO",
-            315f,
-            375f,
+            contentLeft,
+            titleY,
             paint
         )
 
-        val cardWidth = 145f
-        val cardHeight = 115f
-        val gap = 12f
+        val cardTop = titleY + 18f * scale
+
+        val availableWidth = contentWidth
+
+        // En pantallas grandes las tarjetas crecen.
+        val cardWidth =
+            (availableWidth - 5f * 16f * scale) / 6f
+
+        val finalCardWidth =
+            cardWidth.coerceIn(
+                125f * scale,
+                230f * scale
+            )
+
+        val cardHeight = finalCardWidth * 0.68f
+
+        val gap = 14f * scale
 
         channels.forEachIndexed { index, channel ->
 
             val x =
-                315f +
-                        index * (cardWidth + gap) -
+                contentLeft +
+                        index * (finalCardWidth + gap) -
                         cardScrollOffset
 
-            val y = 395f
+            val y = cardTop
 
-            // No dibujar tarjetas fuera de pantalla
-            if (x + cardWidth < 285f || x > width) {
+            if (x + finalCardWidth < contentLeft ||
+                x > contentRight
+            ) {
                 return@forEachIndexed
             }
 
@@ -317,92 +411,143 @@ class HomeView(context: Context) : View(context) {
                 RectF(
                     x,
                     y,
-                    x + cardWidth,
+                    x + finalCardWidth,
                     y + cardHeight
                 ),
-                12f,
-                12f,
+                14f * scale,
+                14f * scale,
                 paint
             )
 
-            // Borde de foco
             if (selected) {
 
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 3f
+                paint.strokeWidth = 3f * scale
                 paint.color = Color.WHITE
 
                 canvas.drawRoundRect(
                     RectF(
-                        x - 2f,
-                        y - 2f,
-                        x + cardWidth + 2f,
-                        y + cardHeight + 2f
+                        x - 2f * scale,
+                        y - 2f * scale,
+                        x + finalCardWidth + 2f * scale,
+                        y + cardHeight + 2f * scale
                     ),
-                    13f,
-                    13f,
+                    15f * scale,
+                    15f * scale,
                     paint
                 )
 
                 paint.style = Paint.Style.FILL
             }
 
-            paint.color = Color.WHITE
-            paint.textSize = 15f
-            paint.isFakeBoldText = true
+            // Zona grande para logo
+            paint.color = Color.rgb(13, 50, 82)
 
-            canvas.drawText(
-                channel,
-                x + 15f,
-                y + 60f,
+            canvas.drawCircle(
+                x + finalCardWidth / 2f,
+                y + cardHeight * 0.38f,
+                min(finalCardWidth, cardHeight) * 0.20f,
                 paint
             )
 
-            paint.textSize = 12f
-            paint.isFakeBoldText = false
+            paint.color = Color.WHITE
+            paint.textSize = 15f * scale
+            paint.isFakeBoldText = true
 
-            paint.color = Color.rgb(150, 210, 255)
+            val textWidth =
+                paint.measureText(channel)
 
             canvas.drawText(
-                "EN VIVO",
-                x + 15f,
-                y + 85f,
+                channel,
+                x + (finalCardWidth - textWidth) / 2f,
+                y + cardHeight * 0.72f,
+                paint
+            )
+
+            paint.color = Color.rgb(150, 210, 255)
+            paint.textSize = 11f * scale
+            paint.isFakeBoldText = false
+
+            val liveText = "● EN VIVO"
+
+            val liveWidth =
+                paint.measureText(liveText)
+
+            canvas.drawText(
+                liveText,
+                x + (finalCardWidth - liveWidth) / 2f,
+                y + cardHeight * 0.88f,
                 paint
             )
         }
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // PELÍCULAS
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun drawMovies(canvas: Canvas) {
 
+        val heroBottom =
+            75f * scale +
+                    min(
+                        270f * scale,
+                        height * 0.30f
+                    )
+
+        val tvTitleY =
+            heroBottom + 45f * scale
+
+        val tvCardsBottom =
+            tvTitleY +
+                    18f * scale +
+                    115f * scale
+
+        val titleY =
+            tvCardsBottom + 45f * scale
+
         paint.color = Color.WHITE
-        paint.textSize = 23f
+        paint.textSize = 23f * scale
         paint.isFakeBoldText = true
 
         canvas.drawText(
             "PELÍCULAS POPULARES",
-            315f,
-            555f,
+            contentLeft,
+            titleY,
             paint
         )
 
-        val cardWidth = 120f
-        val cardHeight = 165f
-        val gap = 15f
+        val cardTop =
+            titleY + 18f * scale
+
+        val availableWidth = contentWidth
+
+        val cardWidth =
+            (availableWidth - 5f * 18f * scale) / 6f
+
+        val finalCardWidth =
+            cardWidth.coerceIn(
+                115f * scale,
+                190f * scale
+            )
+
+        val cardHeight =
+            finalCardWidth * 1.35f
+
+        val gap = 16f * scale
 
         movies.forEachIndexed { index, movie ->
 
             val x =
-                315f +
-                        index * (cardWidth + gap) -
+                contentLeft +
+                        index * (finalCardWidth + gap) -
                         cardScrollOffset
 
-            val y = 575f
+            val y = cardTop
 
-            if (x + cardWidth < 285f || x > width) {
+            if (x + finalCardWidth < contentLeft ||
+                x > contentRight
+            ) {
                 return@forEachIndexed
             }
 
@@ -424,52 +569,70 @@ class HomeView(context: Context) : View(context) {
                 RectF(
                     x,
                     y,
-                    x + cardWidth,
+                    x + finalCardWidth,
                     y + cardHeight
                 ),
-                10f,
-                10f,
+                12f * scale,
+                12f * scale,
                 paint
             )
 
-            // Borde de foco
             if (selected) {
 
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 3f
+                paint.strokeWidth = 3f * scale
                 paint.color = Color.WHITE
 
                 canvas.drawRoundRect(
                     RectF(
-                        x - 2f,
-                        y - 2f,
-                        x + cardWidth + 2f,
-                        y + cardHeight + 2f
+                        x - 2f * scale,
+                        y - 2f * scale,
+                        x + finalCardWidth + 2f * scale,
+                        y + cardHeight + 2f * scale
                     ),
-                    11f,
-                    11f,
+                    13f * scale,
+                    13f * scale,
                     paint
                 )
 
                 paint.style = Paint.Style.FILL
             }
 
+            // Área visual del póster
+            paint.color = Color.rgb(
+                18 + index * 5,
+                42 + index * 3,
+                68 + index * 4
+            )
+
+            canvas.drawRoundRect(
+                RectF(
+                    x + 8f * scale,
+                    y + 8f * scale,
+                    x + finalCardWidth - 8f * scale,
+                    y + cardHeight * 0.72f
+                ),
+                9f * scale,
+                9f * scale,
+                paint
+            )
+
             paint.color = Color.WHITE
-            paint.textSize = 14f
+            paint.textSize = 14f * scale
             paint.isFakeBoldText = true
 
             canvas.drawText(
                 movie,
-                x + 10f,
-                y + 90f,
+                x + 12f * scale,
+                y + cardHeight * 0.84f,
                 paint
             )
         }
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // TOUCH
-    // ---------------------------------------------------------
+    // =========================================================
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
 
@@ -491,22 +654,20 @@ class HomeView(context: Context) : View(context) {
                 val deltaX = endX - touchStartX
                 val deltaY = endY - touchStartY
 
-                // -------------------------------------------------
-                // SWIPE HORIZONTAL
-                // -------------------------------------------------
+                // Swipe horizontal
+                if (
+                    abs(deltaX) > 80f &&
+                    abs(deltaX) > abs(deltaY)
+                ) {
 
-                if (abs(deltaX) > 80f && abs(deltaX) > abs(deltaY)) {
-
-                    if (deltaX < 0) {
-
-                        cardScrollOffset += 180f
-
+                    if (deltaX < 0f) {
+                        cardScrollOffset += 220f * scale
                     } else {
-
-                        cardScrollOffset -= 180f
+                        cardScrollOffset -= 220f * scale
                     }
 
-                    val maxScroll = 700f
+                    val maxScroll =
+                        850f * scale
 
                     cardScrollOffset =
                         cardScrollOffset.coerceIn(
@@ -519,13 +680,13 @@ class HomeView(context: Context) : View(context) {
                     return true
                 }
 
-                // -------------------------------------------------
-                // SWIPE VERTICAL
-                // -------------------------------------------------
+                // Swipe vertical
+                if (
+                    abs(deltaY) > 80f &&
+                    abs(deltaY) > abs(deltaX)
+                ) {
 
-                if (abs(deltaY) > 80f && abs(deltaY) > abs(deltaX)) {
-
-                    if (deltaY < 0) {
+                    if (deltaY < 0f) {
 
                         selectedSection++
 
@@ -543,17 +704,16 @@ class HomeView(context: Context) : View(context) {
                     }
 
                     selectedCard = 0
+                    cardScrollOffset = 0f
 
                     invalidate()
 
                     return true
                 }
 
-                // -------------------------------------------------
-                // TAP
-                // -------------------------------------------------
-
                 handleTap(endX, endY)
+
+                performClick()
 
                 return true
             }
@@ -562,20 +722,22 @@ class HomeView(context: Context) : View(context) {
         return true
     }
 
-    // ---------------------------------------------------------
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
+
+    // =========================================================
     // TAP
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun handleTap(x: Float, y: Float) {
 
-        // -----------------------------
-        // SIDEBAR
-        // -----------------------------
+        // Sidebar
+        if (x <= sidebarWidth) {
 
-        if (x <= 285f) {
-
-            val startY = 112f
-            val spacing = 65f
+            val startY = 117f * scale
+            val spacing = 65f * scale
 
             sections.forEachIndexed { index, _ ->
 
@@ -583,9 +745,12 @@ class HomeView(context: Context) : View(context) {
                     startY + index * spacing
 
                 val itemBottom =
-                    itemTop + 60f
+                    itemTop + 65f * scale
 
-                if (y >= itemTop && y <= itemBottom) {
+                if (
+                    y >= itemTop &&
+                    y <= itemBottom
+                ) {
 
                     selectedSection = index
                     selectedCard = 0
@@ -598,83 +763,124 @@ class HomeView(context: Context) : View(context) {
             }
         }
 
-        // -----------------------------
-        // TV CARDS
-        // -----------------------------
+        // TV cards
+        val heroBottom =
+            75f * scale +
+                    min(
+                        270f * scale,
+                        height * 0.30f
+                    )
 
-        if (y >= 395f && y <= 510f) {
+        val tvTitleY =
+            heroBottom + 45f * scale
 
-            val cardWidth = 145f
-            val gap = 12f
+        val tvCardTop =
+            tvTitleY + 18f * scale
+
+        val tvCardWidth =
+            (
+                (contentWidth - 5f * 16f * scale) / 6f
+                ).coerceIn(
+                    125f * scale,
+                    230f * scale
+                )
+
+        val tvCardHeight =
+            tvCardWidth * 0.68f
+
+        val tvGap = 14f * scale
+
+        if (
+            y >= tvCardTop &&
+            y <= tvCardTop + tvCardHeight
+        ) {
 
             channels.forEachIndexed { index, _ ->
 
                 val cardLeft =
-                    315f +
-                            index * (cardWidth + gap) -
+                    contentLeft +
+                            index * (tvCardWidth + tvGap) -
                             cardScrollOffset
 
                 val cardRight =
-                    cardLeft + cardWidth
+                    cardLeft + tvCardWidth
 
-                if (x >= cardLeft && x <= cardRight) {
+                if (
+                    x >= cardLeft &&
+                    x <= cardRight
+                ) {
 
                     selectedSection = 1
                     selectedCard = index
 
                     invalidate()
 
-                    // Futuro:
-                    // abrir reproductor del canal
-
                     return
                 }
             }
         }
 
-        // -----------------------------
-        // MOVIE CARDS
-        // -----------------------------
+        // Movie cards
+        val movieTitleY =
+            tvCardTop +
+                    tvCardHeight +
+                    45f * scale
 
-        if (y >= 575f && y <= 740f) {
+        val movieCardTop =
+            movieTitleY + 18f * scale
 
-            val cardWidth = 120f
-            val gap = 15f
+        val movieCardWidth =
+            (
+                (contentWidth - 5f * 18f * scale) / 6f
+                ).coerceIn(
+                    115f * scale,
+                    190f * scale
+                )
+
+        val movieCardHeight =
+            movieCardWidth * 1.35f
+
+        val movieGap = 16f * scale
+
+        if (
+            y >= movieCardTop &&
+            y <= movieCardTop + movieCardHeight
+        ) {
 
             movies.forEachIndexed { index, _ ->
 
                 val cardLeft =
-                    315f +
-                            index * (cardWidth + gap) -
+                    contentLeft +
+                            index * (movieCardWidth + movieGap) -
                             cardScrollOffset
 
                 val cardRight =
-                    cardLeft + cardWidth
+                    cardLeft + movieCardWidth
 
-                if (x >= cardLeft && x <= cardRight) {
+                if (
+                    x >= cardLeft &&
+                    x <= cardRight
+                ) {
 
                     selectedSection = 2
                     selectedCard = index
 
                     invalidate()
 
-                    // Futuro:
-                    // abrir detalle de película
-
                     return
                 }
             }
         }
 
-        // -----------------------------
         // VER AHORA
-        // -----------------------------
+        val heroLeft = contentLeft
+        val heroTop = 75f * scale
 
         if (
-            x >= 350f &&
-            x <= 505f &&
-            y >= 255f &&
-            y <= 305f
+            x >= heroLeft + 25f * scale &&
+            x <= heroLeft + 230f * scale &&
+            y >= heroTop + 155f * scale &&
+            y <= heroTop + 245f * scale
         ) {
 
             selectedSection = 1
@@ -684,9 +890,9 @@ class HomeView(context: Context) : View(context) {
         }
     }
 
-    // ---------------------------------------------------------
-    // CONTROL REMOTO / TECLADO
-    // ---------------------------------------------------------
+    // =========================================================
+    // CONTROL REMOTO
+    // =========================================================
 
     override fun onKeyDown(
         keyCode: Int,
@@ -694,10 +900,6 @@ class HomeView(context: Context) : View(context) {
     ): Boolean {
 
         when (keyCode) {
-
-            // -----------------------------------------
-            // ARRIBA
-            // -----------------------------------------
 
             KeyEvent.KEYCODE_DPAD_UP -> {
 
@@ -715,10 +917,6 @@ class HomeView(context: Context) : View(context) {
                 return true
             }
 
-            // -----------------------------------------
-            // ABAJO
-            // -----------------------------------------
-
             KeyEvent.KEYCODE_DPAD_DOWN -> {
 
                 selectedSection++
@@ -735,16 +933,15 @@ class HomeView(context: Context) : View(context) {
                 return true
             }
 
-            // -----------------------------------------
-            // IZQUIERDA
-            // -----------------------------------------
-
             KeyEvent.KEYCODE_DPAD_LEFT -> {
 
-                if (
-                    selectedSection == 1 ||
-                    selectedSection == 2
-                ) {
+                if (selectedSection == 1) {
+
+                    if (selectedCard > 0) {
+                        selectedCard--
+                    }
+
+                } else if (selectedSection == 2) {
 
                     if (selectedCard > 0) {
                         selectedCard--
@@ -765,10 +962,6 @@ class HomeView(context: Context) : View(context) {
 
                 return true
             }
-
-            // -----------------------------------------
-            // DERECHA
-            // -----------------------------------------
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
 
@@ -800,10 +993,6 @@ class HomeView(context: Context) : View(context) {
                 return true
             }
 
-            // -----------------------------------------
-            // OK / ENTER
-            // -----------------------------------------
-
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER -> {
@@ -813,13 +1002,8 @@ class HomeView(context: Context) : View(context) {
                 return true
             }
 
-            // -----------------------------------------
-            // BACK
-            // -----------------------------------------
-
             KeyEvent.KEYCODE_BACK -> {
 
-                // Por ahora vuelve al inicio
                 selectedSection = 0
                 selectedCard = 0
                 cardScrollOffset = 0f
@@ -836,9 +1020,9 @@ class HomeView(context: Context) : View(context) {
         )
     }
 
-    // ---------------------------------------------------------
-    // SELECCIÓN CON OK
-    // ---------------------------------------------------------
+    // =========================================================
+    // OK / ENTER
+    // =========================================================
 
     private fun handleSelection() {
 
@@ -849,13 +1033,11 @@ class HomeView(context: Context) : View(context) {
             }
 
             1 -> {
-                // Futuro:
-                // abrir reproductor Live TV
+                // Futuro: reproductor Live TV
             }
 
             2 -> {
-                // Futuro:
-                // abrir detalle de película
+                // Futuro: detalle de película
             }
 
             3 -> {
