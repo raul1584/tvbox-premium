@@ -1,14 +1,14 @@
 package com.tvboxpremium
 
 import android.app.Activity
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.InputType
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,6 +31,10 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private lateinit var loading: ProgressBar
 
+    /*
+     * Las credenciales solamente viven en memoria mientras
+     * la aplicación está abierta.
+     */
     private var username = ""
     private var password = ""
 
@@ -65,7 +69,12 @@ class MainActivity : Activity() {
         val container = LinearLayout(this)
         container.orientation = LinearLayout.VERTICAL
         container.gravity = Gravity.CENTER
-        container.setPadding(dp(35), dp(25), dp(35), dp(25))
+        container.setPadding(
+            dp(35),
+            dp(25),
+            dp(35),
+            dp(25)
+        )
 
         root.addView(
             container,
@@ -76,6 +85,7 @@ class MainActivity : Activity() {
         )
 
         val title = TextView(this)
+
         title.text = "TVBOX PREMIUM"
         title.textSize = 30f
         title.setTextColor(Color.WHITE)
@@ -91,6 +101,7 @@ class MainActivity : Activity() {
         )
 
         val subtitle = TextView(this)
+
         subtitle.text = "Inicia sesión para cargar tu contenido"
         subtitle.textSize = 15f
         subtitle.setTextColor(Color.rgb(160, 180, 200))
@@ -104,66 +115,134 @@ class MainActivity : Activity() {
             )
         )
 
+        // --------------------------------------------------------
+        // Usuario
+        // --------------------------------------------------------
+
         val userInput = EditText(this)
+
         userInput.hint = "Usuario"
         userInput.setTextColor(Color.WHITE)
         userInput.setHintTextColor(Color.rgb(130, 145, 160))
         userInput.setSingleLine(true)
-        userInput.setPadding(dp(18), 0, dp(18), 0)
-        userInput.setBackgroundColor(Color.rgb(15, 30, 48))
+
+        userInput.setPadding(
+            dp(18),
+            0,
+            dp(18),
+            0
+        )
+
+        userInput.setBackgroundColor(
+            Color.rgb(15, 30, 48)
+        )
 
         val userParams = LinearLayout.LayoutParams(
             dp(380),
             dp(55)
         )
-        userParams.setMargins(0, dp(18), 0, dp(10))
 
-        container.addView(userInput, userParams)
+        userParams.setMargins(
+            0,
+            dp(18),
+            0,
+            dp(10)
+        )
+
+        container.addView(
+            userInput,
+            userParams
+        )
+
+        // --------------------------------------------------------
+        // Contraseña
+        // --------------------------------------------------------
 
         val passInput = EditText(this)
+
         passInput.hint = "Contraseña"
         passInput.setTextColor(Color.WHITE)
         passInput.setHintTextColor(Color.rgb(130, 145, 160))
         passInput.setSingleLine(true)
-        passInput.inputType =
-            android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
 
-        passInput.setPadding(dp(18), 0, dp(18), 0)
-        passInput.setBackgroundColor(Color.rgb(15, 30, 48))
+        passInput.inputType =
+            InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
+
+        passInput.setPadding(
+            dp(18),
+            0,
+            dp(18),
+            0
+        )
+
+        passInput.setBackgroundColor(
+            Color.rgb(15, 30, 48)
+        )
 
         val passParams = LinearLayout.LayoutParams(
             dp(380),
             dp(55)
         )
-        passParams.setMargins(0, 0, 0, dp(18))
 
-        container.addView(passInput, passParams)
+        passParams.setMargins(
+            0,
+            0,
+            0,
+            dp(18)
+        )
+
+        container.addView(
+            passInput,
+            passParams
+        )
+
+        // --------------------------------------------------------
+        // Botón login
+        // --------------------------------------------------------
 
         val loginButton = Button(this)
+
         loginButton.text = "INICIAR SESIÓN"
         loginButton.textSize = 15f
         loginButton.setTextColor(Color.WHITE)
-        loginButton.setBackgroundColor(Color.rgb(22, 133, 245))
+        loginButton.setBackgroundColor(
+            Color.rgb(22, 133, 245)
+        )
 
         val loginParams = LinearLayout.LayoutParams(
             dp(380),
             dp(55)
         )
 
-        container.addView(loginButton, loginParams)
-
-        val status = TextView(this)
-        status.textSize = 14f
-        status.gravity = Gravity.CENTER
-        status.setTextColor(Color.rgb(150, 170, 190))
-
-        val statusParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(55)
+        container.addView(
+            loginButton,
+            loginParams
         )
 
-        container.addView(status, statusParams)
+        // --------------------------------------------------------
+        // Estado
+        // --------------------------------------------------------
+
+        val status = TextView(this)
+
+        status.textSize = 14f
+        status.gravity = Gravity.CENTER
+        status.setTextColor(
+            Color.rgb(150, 170, 190)
+        )
+
+        container.addView(
+            status,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(55)
+            )
+        )
+
+        // --------------------------------------------------------
+        // Acción login
+        // --------------------------------------------------------
 
         loginButton.setOnClickListener {
 
@@ -171,12 +250,17 @@ class MainActivity : Activity() {
             val pass = passInput.text.toString()
 
             if (user.isEmpty() || pass.isEmpty()) {
-                status.text = "Introduce usuario y contraseña"
+
+                status.text =
+                    "Introduce usuario y contraseña"
+
                 return@setOnClickListener
             }
 
             loginButton.isEnabled = false
-            status.text = "Conectando con el servidor..."
+
+            status.text =
+                "Conectando con el servidor..."
 
             executor.execute {
 
@@ -189,21 +273,29 @@ class MainActivity : Activity() {
 
                     val json = apiRequest(params)
 
-                    val userInfo = json.optJSONObject("user_info")
+                    val userInfo =
+                        json.optJSONObject("user_info")
 
-                    val auth = userInfo?.optString("auth", "0")
+                    val auth =
+                        userInfo?.optString(
+                            "auth",
+                            "0"
+                        )
 
-                    if (auth == "1" || auth.equals("true", true)) {
+                    if (
+                        auth == "1" ||
+                        auth.equals("true", true)
+                    ) {
 
                         username = user
                         password = pass
 
                         runOnUiThread {
 
-                            status.text = "Login correcto"
+                            status.text =
+                                "Login correcto"
 
                             showHome()
-
                         }
 
                     } else {
@@ -211,8 +303,9 @@ class MainActivity : Activity() {
                         runOnUiThread {
 
                             loginButton.isEnabled = true
-                            status.text = "Usuario o contraseña incorrectos"
 
+                            status.text =
+                                "Usuario o contraseña incorrectos"
                         }
                     }
 
@@ -221,9 +314,11 @@ class MainActivity : Activity() {
                     runOnUiThread {
 
                         loginButton.isEnabled = true
-                        status.text =
-                            "Error de conexión: ${e.message ?: "desconocido"}"
 
+                        status.text =
+                            "Error de conexión: " +
+                                    (e.message
+                                        ?: "desconocido")
                     }
                 }
             }
@@ -239,8 +334,13 @@ class MainActivity : Activity() {
         root.removeAllViews()
 
         val main = LinearLayout(this)
-        main.orientation = LinearLayout.VERTICAL
-        main.setBackgroundColor(Color.rgb(3, 12, 25))
+
+        main.orientation =
+            LinearLayout.VERTICAL
+
+        main.setBackgroundColor(
+            Color.rgb(3, 12, 25)
+        )
 
         root.addView(
             main,
@@ -255,10 +355,23 @@ class MainActivity : Activity() {
         // --------------------------------------------------------
 
         val topBar = LinearLayout(this)
-        topBar.orientation = LinearLayout.HORIZONTAL
-        topBar.gravity = Gravity.CENTER_VERTICAL
-        topBar.setPadding(dp(25), 0, dp(25), 0)
-        topBar.setBackgroundColor(Color.rgb(5, 18, 34))
+
+        topBar.orientation =
+            LinearLayout.HORIZONTAL
+
+        topBar.gravity =
+            Gravity.CENTER_VERTICAL
+
+        topBar.setPadding(
+            dp(25),
+            0,
+            dp(25),
+            0
+        )
+
+        topBar.setBackgroundColor(
+            Color.rgb(5, 18, 34)
+        )
 
         main.addView(
             topBar,
@@ -269,10 +382,14 @@ class MainActivity : Activity() {
         )
 
         val logo = TextView(this)
+
         logo.text = "TVBOX PREMIUM"
         logo.textSize = 21f
         logo.setTextColor(Color.WHITE)
-        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+        logo.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+        )
 
         topBar.addView(
             logo,
@@ -293,15 +410,18 @@ class MainActivity : Activity() {
             )
         )
 
-        val tvButton = createTopButton("TV")
+        val tvButton =
+            createTopButton("TV")
 
         topBar.addView(tvButton)
 
-        val vodButton = createTopButton("PELÍCULAS")
+        val vodButton =
+            createTopButton("PELÍCULAS")
 
         topBar.addView(vodButton)
 
-        val logoutButton = createTopButton("SALIR")
+        val logoutButton =
+            createTopButton("SALIR")
 
         topBar.addView(logoutButton)
 
@@ -323,18 +443,30 @@ class MainActivity : Activity() {
             liveStreams.clear()
             vodStreams.clear()
 
+            selectedLiveCategoryId = null
+            selectedVodCategoryId = null
+
             showLogin()
         }
 
         // --------------------------------------------------------
-        // CONTENT
+        // CONTENIDO SCROLL
         // --------------------------------------------------------
 
         content = LinearLayout(this)
-        content.orientation = LinearLayout.VERTICAL
-        content.setPadding(dp(25), dp(20), dp(25), dp(20))
+
+        content.orientation =
+            LinearLayout.VERTICAL
+
+        content.setPadding(
+            dp(25),
+            dp(20),
+            dp(25),
+            dp(20)
+        )
 
         val scroll = ScrollView(this)
+
         scroll.isFillViewport = true
 
         scroll.addView(
@@ -354,7 +486,12 @@ class MainActivity : Activity() {
             )
         )
 
+        // --------------------------------------------------------
+        // Loading global
+        // --------------------------------------------------------
+
         loading = ProgressBar(this)
+
         loading.visibility = View.GONE
 
         root.addView(
@@ -386,9 +523,10 @@ class MainActivity : Activity() {
             "Canales de televisión"
         )
 
-        val tvButton = createLargeMenuButton(
-            "Ver televisión en vivo"
-        )
+        val tvButton =
+            createLargeMenuButton(
+                "VER TELEVISIÓN EN VIVO"
+            )
 
         content.addView(tvButton)
 
@@ -401,9 +539,10 @@ class MainActivity : Activity() {
             "Catálogo VOD"
         )
 
-        val movieButton = createLargeMenuButton(
-            "Ver películas"
-        )
+        val movieButton =
+            createLargeMenuButton(
+                "VER PELÍCULAS"
+            )
 
         content.addView(movieButton)
 
@@ -411,6 +550,9 @@ class MainActivity : Activity() {
             showVod()
         }
 
+        /*
+         * Precargamos categorías.
+         */
         loadLiveCategories()
         loadVodCategories()
     }
@@ -422,8 +564,13 @@ class MainActivity : Activity() {
     private fun addHero() {
 
         val hero = LinearLayout(this)
-        hero.orientation = LinearLayout.VERTICAL
-        hero.gravity = Gravity.BOTTOM
+
+        hero.orientation =
+            LinearLayout.VERTICAL
+
+        hero.gravity =
+            Gravity.BOTTOM
+
         hero.setPadding(
             dp(30),
             dp(25),
@@ -431,7 +578,9 @@ class MainActivity : Activity() {
             dp(25)
         )
 
-        hero.setBackgroundColor(Color.rgb(8, 30, 52))
+        hero.setBackgroundColor(
+            Color.rgb(8, 30, 52)
+        )
 
         content.addView(
             hero,
@@ -442,30 +591,50 @@ class MainActivity : Activity() {
         )
 
         val title = TextView(this)
+
         title.text = "TVBOX PREMIUM"
         title.textSize = 32f
         title.setTextColor(Color.WHITE)
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+        title.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+        )
 
         hero.addView(title)
 
         val subtitle = TextView(this)
-        subtitle.text = "Tu entretenimiento en un solo lugar"
+
+        subtitle.text =
+            "Tu entretenimiento en un solo lugar"
+
         subtitle.textSize = 16f
-        subtitle.setTextColor(Color.rgb(190, 205, 220))
+
+        subtitle.setTextColor(
+            Color.rgb(190, 205, 220)
+        )
 
         hero.addView(subtitle)
 
-        val button = createBlueButton("EXPLORAR TV")
+        val button =
+            createBlueButton("EXPLORAR TV")
 
-        val params = LinearLayout.LayoutParams(
-            dp(180),
-            dp(50)
+        val buttonParams =
+            LinearLayout.LayoutParams(
+                dp(180),
+                dp(50)
+            )
+
+        buttonParams.setMargins(
+            0,
+            dp(18),
+            0,
+            0
         )
 
-        params.setMargins(0, dp(18), 0, 0)
-
-        hero.addView(button, params)
+        hero.addView(
+            button,
+            buttonParams
+        )
 
         button.setOnClickListener {
             showLive()
@@ -473,7 +642,7 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
-    // LIVE TV
+    // LIVE
     // ============================================================
 
     private fun showLive() {
@@ -499,6 +668,10 @@ class MainActivity : Activity() {
         }
     }
 
+    // ============================================================
+    // LIVE CATEGORIES
+    // ============================================================
+
     private fun loadLiveCategories() {
 
         executor.execute {
@@ -508,31 +681,51 @@ class MainActivity : Activity() {
                 val array =
                     apiRequestArray(
                         mapOf(
-                            "action" to "get_live_categories"
+                            "action" to
+                                    "get_live_categories"
                         )
                     )
 
-                val result = mutableListOf<LiveCategory>()
+                val result =
+                    mutableListOf<LiveCategory>()
 
                 for (i in 0 until array.length()) {
 
-                    val item = array.optJSONObject(i) ?: continue
+                    val item =
+                        array.optJSONObject(i)
+                            ?: continue
 
-                    result.add(
-                        LiveCategory(
-                            categoryId =
-                                item.optString("category_id"),
-                            categoryName =
-                                item.optString("category_name")
+                    val categoryId =
+                        item.optString(
+                            "category_id"
                         )
-                    )
+
+                    val categoryName =
+                        item.optString(
+                            "category_name"
+                        )
+
+                    if (
+                        categoryId.isNotEmpty() &&
+                        categoryName.isNotEmpty()
+                    ) {
+
+                        result.add(
+                            LiveCategory(
+                                categoryId,
+                                categoryName
+                            )
+                        )
+                    }
                 }
 
                 liveCategories = result
 
                 runOnUiThread {
 
-                    if (currentSection == "live") {
+                    if (
+                        currentSection == "live"
+                    ) {
                         renderLiveCategories()
                     }
                 }
@@ -541,15 +734,25 @@ class MainActivity : Activity() {
 
                 runOnUiThread {
 
-                    if (currentSection == "live") {
+                    if (
+                        currentSection == "live"
+                    ) {
+
                         showError(
-                            "No se pudieron cargar las categorías TV:\n${e.message}"
+                            "No se pudieron cargar " +
+                                    "las categorías TV:\n" +
+                                    (e.message
+                                        ?: "error desconocido")
                         )
                     }
                 }
             }
         }
     }
+
+    // ============================================================
+    // RENDER LIVE CATEGORIES
+    // ============================================================
 
     private fun renderLiveCategories() {
 
@@ -560,7 +763,8 @@ class MainActivity : Activity() {
             "${liveCategories.size} categorías"
         )
 
-        val categoriesContainer = HorizontalScrollView(this)
+        val categoriesScroll =
+            HorizontalScrollView(this)
 
         val categories =
             LinearLayout(this)
@@ -568,10 +772,10 @@ class MainActivity : Activity() {
         categories.orientation =
             LinearLayout.HORIZONTAL
 
-        categoriesContainer.addView(categories)
+        categoriesScroll.addView(categories)
 
         content.addView(
-            categoriesContainer,
+            categoriesScroll,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(65)
@@ -620,9 +824,11 @@ class MainActivity : Activity() {
             val info = TextView(this)
 
             info.text =
-                "Selecciona una categoría para cargar los canales."
+                "Selecciona una categoría " +
+                        "para cargar los canales."
 
             info.textSize = 15f
+
             info.setTextColor(
                 Color.rgb(160, 180, 200)
             )
@@ -635,7 +841,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadLiveStreams(categoryId: String?) {
+    // ============================================================
+    // LIVE STREAMS
+    // ============================================================
+
+    private fun loadLiveStreams(
+        categoryId: String?
+    ) {
 
         showLoading(true)
 
@@ -645,11 +857,13 @@ class MainActivity : Activity() {
 
                 val params =
                     mutableMapOf(
-                        "action" to "get_live_streams"
+                        "action" to
+                                "get_live_streams"
                     )
 
-                if (!categoryId.isNullOrEmpty()) {
-
+                if (
+                    !categoryId.isNullOrEmpty()
+                ) {
                     params["category_id"] =
                         categoryId
                 }
@@ -672,18 +886,22 @@ class MainActivity : Activity() {
                                 item.optString(
                                     "stream_id"
                                 ),
+
                             name =
                                 item.optString(
                                     "name"
                                 ),
+
                             streamIcon =
                                 item.optString(
                                     "stream_icon"
                                 ),
+
                             categoryId =
                                 item.optString(
                                     "category_id"
                                 ),
+
                             streamType =
                                 item.optString(
                                     "stream_type"
@@ -698,7 +916,9 @@ class MainActivity : Activity() {
 
                     showLoading(false)
 
-                    if (currentSection == "live") {
+                    if (
+                        currentSection == "live"
+                    ) {
                         renderLiveStreams()
                     }
                 }
@@ -710,16 +930,22 @@ class MainActivity : Activity() {
                     showLoading(false)
 
                     showError(
-                        "Error cargando canales:\n${e.message}"
+                        "Error cargando canales:\n" +
+                                (e.message
+                                    ?: "desconocido")
                     )
                 }
             }
         }
     }
 
+    // ============================================================
+    // RENDER LIVE STREAMS
+    // ============================================================
+
     private fun renderLiveStreams() {
 
-        removeContentAfterCategoryArea()
+        renderLiveCategoryHeaderOnly()
 
         addSectionTitle(
             "CANALES",
@@ -731,13 +957,132 @@ class MainActivity : Activity() {
             val card =
                 createLiveCard(stream)
 
-            content.addView(card)
+            val cardParams =
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(76)
+                )
+
+            cardParams.setMargins(
+                0,
+                0,
+                0,
+                dp(8)
+            )
+
+            content.addView(
+                card,
+                cardParams
+            )
 
             card.setOnClickListener {
 
                 onLiveSelected(stream)
             }
         }
+    }
+
+    // ============================================================
+    // LIVE CARD
+    // ============================================================
+
+    private fun createLiveCard(
+        stream: LiveStream
+    ): LinearLayout {
+
+        val card = LinearLayout(this)
+
+        card.orientation =
+            LinearLayout.HORIZONTAL
+
+        card.gravity =
+            Gravity.CENTER_VERTICAL
+
+        card.setPadding(
+            dp(15),
+            dp(8),
+            dp(15),
+            dp(8)
+        )
+
+        card.setBackgroundColor(
+            Color.rgb(9, 25, 43)
+        )
+
+        val icon = ImageView(this)
+
+        icon.scaleType =
+            ImageView.ScaleType.CENTER_CROP
+
+        icon.setBackgroundColor(
+            Color.rgb(15, 30, 48)
+        )
+
+        card.addView(
+            icon,
+            LinearLayout.LayoutParams(
+                dp(95),
+                dp(60)
+            )
+        )
+
+        if (
+            stream.streamIcon.isNotEmpty()
+        ) {
+            loadImage(
+                stream.streamIcon,
+                icon
+            )
+        }
+
+        val info = LinearLayout(this)
+
+        info.orientation =
+            LinearLayout.VERTICAL
+
+        info.gravity =
+            Gravity.CENTER_VERTICAL
+
+        info.setPadding(
+            dp(18),
+            0,
+            0,
+            0
+        )
+
+        val name = TextView(this)
+
+        name.text = stream.name
+        name.textSize = 17f
+        name.setTextColor(Color.WHITE)
+        name.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+        )
+
+        info.addView(name)
+
+        val live = TextView(this)
+
+        live.text = "● EN VIVO"
+        live.textSize = 12f
+
+        live.setTextColor(
+            Color.rgb(80, 190, 255)
+        )
+
+        info.addView(live)
+
+        card.addView(
+            info,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+        )
+
+        return card
     }
 
     // ============================================================
@@ -755,6 +1100,8 @@ class MainActivity : Activity() {
             "Catálogo VOD"
         )
 
+        addLoading()
+
         if (vodCategories.isEmpty()) {
 
             loadVodCategories()
@@ -764,6 +1111,10 @@ class MainActivity : Activity() {
             renderVodCategories()
         }
     }
+
+    // ============================================================
+    // VOD CATEGORIES
+    // ============================================================
 
     private fun loadVodCategories() {
 
@@ -788,25 +1139,37 @@ class MainActivity : Activity() {
                         array.optJSONObject(i)
                             ?: continue
 
-                    result.add(
-                        VodCategory(
-                            categoryId =
-                                item.optString(
-                                    "category_id"
-                                ),
-                            categoryName =
-                                item.optString(
-                                    "category_name"
-                                )
+                    val categoryId =
+                        item.optString(
+                            "category_id"
                         )
-                    )
+
+                    val categoryName =
+                        item.optString(
+                            "category_name"
+                        )
+
+                    if (
+                        categoryId.isNotEmpty() &&
+                        categoryName.isNotEmpty()
+                    ) {
+
+                        result.add(
+                            VodCategory(
+                                categoryId,
+                                categoryName
+                            )
+                        )
+                    }
                 }
 
                 vodCategories = result
 
                 runOnUiThread {
 
-                    if (currentSection == "vod") {
+                    if (
+                        currentSection == "vod"
+                    ) {
                         renderVodCategories()
                     }
                 }
@@ -815,16 +1178,25 @@ class MainActivity : Activity() {
 
                 runOnUiThread {
 
-                    if (currentSection == "vod") {
+                    if (
+                        currentSection == "vod"
+                    ) {
 
                         showError(
-                            "No se pudieron cargar las categorías VOD:\n${e.message}"
+                            "No se pudieron cargar " +
+                                    "las categorías VOD:\n" +
+                                    (e.message
+                                        ?: "error desconocido")
                         )
                     }
                 }
             }
         }
     }
+
+    // ============================================================
+    // RENDER VOD CATEGORIES
+    // ============================================================
 
     private fun renderVodCategories() {
 
@@ -854,12 +1226,12 @@ class MainActivity : Activity() {
             )
         )
 
-        val all =
+        val allButton =
             createCategoryButton("TODAS")
 
-        categories.addView(all)
+        categories.addView(allButton)
 
-        all.setOnClickListener {
+        allButton.setOnClickListener {
 
             selectedVodCategoryId = null
 
@@ -894,9 +1266,11 @@ class MainActivity : Activity() {
         val info = TextView(this)
 
         info.text =
-            "Selecciona una categoría para cargar las películas."
+            "Selecciona una categoría " +
+                    "para cargar las películas."
 
         info.textSize = 15f
+
         info.setTextColor(
             Color.rgb(160, 180, 200)
         )
@@ -904,7 +1278,13 @@ class MainActivity : Activity() {
         content.addView(info)
     }
 
-    private fun loadVodStreams(categoryId: String?) {
+    // ============================================================
+    // VOD STREAMS
+    // ============================================================
+
+    private fun loadVodStreams(
+        categoryId: String?
+    ) {
 
         showLoading(true)
 
@@ -918,8 +1298,9 @@ class MainActivity : Activity() {
                                 "get_vod_streams"
                     )
 
-                if (!categoryId.isNullOrEmpty()) {
-
+                if (
+                    !categoryId.isNullOrEmpty()
+                ) {
                     params["category_id"] =
                         categoryId
                 }
@@ -942,27 +1323,33 @@ class MainActivity : Activity() {
                                 item.optString(
                                     "stream_id"
                                 ),
+
                             name =
                                 item.optString(
                                     "name"
                                 ),
+
                             streamIcon =
                                 item.optString(
                                     "stream_icon"
                                 ),
+
                             categoryId =
                                 item.optString(
                                     "category_id"
                                 ),
+
                             containerExtension =
                                 item.optString(
                                     "container_extension",
                                     "mp4"
                                 ),
+
                             rating =
                                 item.optString(
                                     "rating"
                                 ),
+
                             plot =
                                 item.optString(
                                     "plot"
@@ -977,7 +1364,9 @@ class MainActivity : Activity() {
 
                     showLoading(false)
 
-                    if (currentSection == "vod") {
+                    if (
+                        currentSection == "vod"
+                    ) {
                         renderVodStreams()
                     }
                 }
@@ -989,24 +1378,29 @@ class MainActivity : Activity() {
                     showLoading(false)
 
                     showError(
-                        "Error cargando películas:\n${e.message}"
+                        "Error cargando películas:\n" +
+                                (e.message
+                                    ?: "desconocido")
                     )
                 }
             }
         }
     }
 
+    // ============================================================
+    // RENDER VOD
+    // ============================================================
+
     private fun renderVodStreams() {
 
-        removeContentAfterCategoryArea()
+        renderVodCategoryHeaderOnly()
 
         addSectionTitle(
             "PELÍCULAS",
             "${vodStreams.size} títulos"
         )
 
-        val grid =
-            LinearLayout(this)
+        val grid = LinearLayout(this)
 
         grid.orientation =
             LinearLayout.VERTICAL
@@ -1024,146 +1418,55 @@ class MainActivity : Activity() {
                 row.orientation =
                     LinearLayout.HORIZONTAL
 
-                grid.addView(
-                    row,
+                val rowParams =
                     LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         dp(260)
                     )
+
+                rowParams.setMargins(
+                    0,
+                    0,
+                    0,
+                    dp(8)
+                )
+
+                grid.addView(
+                    row,
+                    rowParams
                 )
             }
 
-            val card =
-                createVodCard(
-                    vodStreams[index]
-                )
+            val movie =
+                vodStreams[index]
 
-            row?.addView(
-                card,
+            val card =
+                createVodCard(movie)
+
+            val cardParams =
                 LinearLayout.LayoutParams(
                     0,
                     dp(245),
                     1f
                 )
+
+            cardParams.setMargins(
+                0,
+                0,
+                dp(8),
+                0
+            )
+
+            row?.addView(
+                card,
+                cardParams
             )
 
             card.setOnClickListener {
 
-                onVodSelected(
-                    vodStreams[index]
-                )
+                onVodSelected(movie)
             }
         }
-    }
-
-    // ============================================================
-    // LIVE CARD
-    // ============================================================
-
-    private fun createLiveCard(
-        stream: LiveStream
-    ): LinearLayout {
-
-        val card =
-            LinearLayout(this)
-
-        card.orientation =
-            LinearLayout.HORIZONTAL
-
-        card.gravity =
-            Gravity.CENTER_VERTICAL
-
-        card.setPadding(
-            dp(15),
-            dp(8),
-            dp(15),
-            dp(8)
-        )
-
-        card.setBackgroundColor(
-            Color.rgb(9, 25, 43)
-        )
-
-        val icon =
-            ImageView(this)
-
-        icon.scaleType =
-            ImageView.ScaleType.CENTER_CROP
-
-        card.addView(
-            icon,
-            LinearLayout.LayoutParams(
-                dp(95),
-                dp(60)
-            )
-        )
-
-        if (stream.streamIcon.isNotEmpty()) {
-
-            loadImage(
-                stream.streamIcon,
-                icon
-            )
-        }
-
-        val info =
-            LinearLayout(this)
-
-        info.orientation =
-            LinearLayout.VERTICAL
-
-        info.setPadding(
-            dp(18),
-            0,
-            0,
-            0
-        )
-
-        val name =
-            TextView(this)
-
-        name.text =
-            stream.name
-
-        name.textSize =
-            17f
-
-        name.setTextColor(
-            Color.WHITE
-        )
-
-        name.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        info.addView(name)
-
-        val live =
-            TextView(this)
-
-        live.text =
-            "● EN VIVO"
-
-        live.textSize =
-            12f
-
-        live.setTextColor(
-            Color.rgb(80, 190, 255)
-        )
-
-        info.addView(live)
-
-        card.addView(
-            info,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        return card
     }
 
     // ============================================================
@@ -1174,8 +1477,7 @@ class MainActivity : Activity() {
         movie: VodStream
     ): LinearLayout {
 
-        val card =
-            LinearLayout(this)
+        val card = LinearLayout(this)
 
         card.orientation =
             LinearLayout.VERTICAL
@@ -1187,8 +1489,11 @@ class MainActivity : Activity() {
             dp(6)
         )
 
-        val poster =
-            ImageView(this)
+        card.setBackgroundColor(
+            Color.rgb(9, 25, 43)
+        )
+
+        val poster = ImageView(this)
 
         poster.scaleType =
             ImageView.ScaleType.CENTER_CROP
@@ -1205,7 +1510,9 @@ class MainActivity : Activity() {
             )
         )
 
-        if (movie.streamIcon.isNotEmpty()) {
+        if (
+            movie.streamIcon.isNotEmpty()
+        ) {
 
             loadImage(
                 movie.streamIcon,
@@ -1213,23 +1520,16 @@ class MainActivity : Activity() {
             )
         }
 
-        val title =
-            TextView(this)
+        val title = TextView(this)
 
-        title.text =
-            movie.name
-
-        title.textSize =
-            14f
-
-        title.setTextColor(
-            Color.WHITE
-        )
+        title.text = movie.name
+        title.textSize = 14f
+        title.setTextColor(Color.WHITE)
 
         title.maxLines = 2
 
         title.ellipsize =
-            android.text.TextUtils.TruncateAt.END
+            TextUtils.TruncateAt.END
 
         title.setPadding(
             dp(5),
@@ -1240,16 +1540,16 @@ class MainActivity : Activity() {
 
         card.addView(title)
 
-        if (movie.rating.isNotEmpty()) {
+        if (
+            movie.rating.isNotEmpty()
+        ) {
 
-            val rating =
-                TextView(this)
+            val rating = TextView(this)
 
             rating.text =
                 "★ ${movie.rating}"
 
-            rating.textSize =
-                12f
+            rating.textSize = 12f
 
             rating.setTextColor(
                 Color.rgb(150, 190, 255)
@@ -1269,17 +1569,33 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
-    // SELECCIÓN
+    // SELECT LIVE
     // ============================================================
 
     private fun onLiveSelected(
         stream: LiveStream
     ) {
 
+        /*
+         * Xtream normalmente usa .ts para live.
+         * Si la API informa m3u8, usamos m3u8.
+         *
+         * OJO:
+         * El servidor puede redirigir posteriormente
+         * este endpoint hacia HLS. Eso lo resolveremos
+         * en el reproductor.
+         */
+
         val extension =
             when {
+
                 stream.streamType.equals(
                     "m3u8",
+                    true
+                ) -> "m3u8"
+
+                stream.streamType.equals(
+                    "hls",
                     true
                 ) -> "m3u8"
 
@@ -1290,13 +1606,24 @@ class MainActivity : Activity() {
             "$SERVER_URL/live/" +
                     "${encode(username)}/" +
                     "${encode(password)}/" +
-                    "${stream.streamId}.$extension"
+                    "${stream.streamId}." +
+                    extension
+
+        /*
+         * Por ahora no mostramos la URL ni
+         * la escribimos en logs.
+         */
 
         showStreamDialog(
             stream.name,
-            url
+            url,
+            false
         )
     }
+
+    // ============================================================
+    // SELECT VOD
+    // ============================================================
 
     private fun onVodSelected(
         movie: VodStream
@@ -1304,17 +1631,21 @@ class MainActivity : Activity() {
 
         val extension =
             movie.containerExtension
-                .ifEmpty { "mp4" }
+                .ifEmpty {
+                    "mp4"
+                }
 
         val url =
             "$SERVER_URL/movie/" +
                     "${encode(username)}/" +
                     "${encode(password)}/" +
-                    "${movie.streamId}.$extension"
+                    "${movie.streamId}." +
+                    extension
 
         showStreamDialog(
             movie.name,
-            url
+            url,
+            true
         )
     }
 
@@ -1324,11 +1655,11 @@ class MainActivity : Activity() {
 
     private fun showStreamDialog(
         title: String,
-        url: String
+        url: String,
+        isVod: Boolean
     ) {
 
-        val box =
-            LinearLayout(this)
+        val box = LinearLayout(this)
 
         box.orientation =
             LinearLayout.VERTICAL
@@ -1340,18 +1671,11 @@ class MainActivity : Activity() {
             dp(20)
         )
 
-        val titleView =
-            TextView(this)
+        val titleView = TextView(this)
 
-        titleView.text =
-            title
-
-        titleView.textSize =
-            20f
-
-        titleView.setTextColor(
-            Color.WHITE
-        )
+        titleView.text = title
+        titleView.textSize = 20f
+        titleView.setTextColor(Color.WHITE)
 
         titleView.setTypeface(
             Typeface.DEFAULT,
@@ -1360,15 +1684,20 @@ class MainActivity : Activity() {
 
         box.addView(titleView)
 
-        val info =
-            TextView(this)
+        val info = TextView(this)
 
         info.text =
-            "URL generada correctamente.\n\n" +
-                    "El siguiente paso será conectar esta URL al reproductor."
+            if (isVod) {
+                "Película seleccionada.\n\n" +
+                        "El siguiente paso será " +
+                        "conectarla al reproductor."
+            } else {
+                "Canal seleccionado.\n\n" +
+                        "El siguiente paso será " +
+                        "conectarlo al reproductor."
+            }
 
-        info.textSize =
-            14f
+        info.textSize = 14f
 
         info.setTextColor(
             Color.rgb(170, 190, 210)
@@ -1392,11 +1721,28 @@ class MainActivity : Activity() {
                 )
                 .create()
 
+        dialog.setOnShowListener {
+
+            /*
+             * No mostramos la URL para evitar
+             * exponer usuario/contraseña.
+             */
+
+            val button =
+                dialog.getButton(
+                    android.app.AlertDialog.BUTTON_POSITIVE
+                )
+
+            button.setTextColor(
+                Color.rgb(22, 133, 245)
+            )
+        }
+
         dialog.show()
     }
 
     // ============================================================
-    // API
+    // API JSON OBJECT
     // ============================================================
 
     private fun apiRequest(
@@ -1410,8 +1756,7 @@ class MainActivity : Activity() {
             URL(url).openConnection()
                     as HttpURLConnection
 
-        connection.requestMethod =
-            "GET"
+        connection.requestMethod = "GET"
 
         connection.connectTimeout =
             15000
@@ -1468,6 +1813,10 @@ class MainActivity : Activity() {
         }
     }
 
+    // ============================================================
+    // API JSON ARRAY
+    // ============================================================
+
     private fun apiRequestArray(
         params: Map<String, String>
     ): JSONArray {
@@ -1479,8 +1828,7 @@ class MainActivity : Activity() {
             URL(url).openConnection()
                     as HttpURLConnection
 
-        connection.requestMethod =
-            "GET"
+        connection.requestMethod = "GET"
 
         connection.connectTimeout =
             15000
@@ -1537,6 +1885,10 @@ class MainActivity : Activity() {
         }
     }
 
+    // ============================================================
+    // BUILD API URL
+    // ============================================================
+
     private fun buildApiUrl(
         params: Map<String, String>
     ): String {
@@ -1563,6 +1915,7 @@ class MainActivity : Activity() {
         for ((key, value) in params) {
 
             query.append("&")
+
             query.append(
                 encode(key)
             )
@@ -1578,7 +1931,7 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
-    // IMAGE LOADING
+    // IMAGE LOADER
     // ============================================================
 
     private fun loadImage(
@@ -1601,8 +1954,7 @@ class MainActivity : Activity() {
                 connection.readTimeout =
                     15000
 
-                connection.useCaches =
-                    true
+                connection.useCaches = true
 
                 val bitmap =
                     connection.inputStream.use {
@@ -1615,39 +1967,39 @@ class MainActivity : Activity() {
 
                     runOnUiThread {
 
-                        imageView.setImageBitmap(
-                            bitmap
-                        )
+                        if (
+                            !isFinishing &&
+                            !isDestroyed
+                        ) {
+                            imageView.setImageBitmap(
+                                bitmap
+                            )
+                        }
                     }
                 }
 
             } catch (_: Exception) {
-                // Si un poster falla,
-                // mantenemos el placeholder.
+
+                /*
+                 * Dejamos el placeholder.
+                 */
             }
         }
     }
 
     // ============================================================
-    // UI HELPERS
+    // TOP BUTTON
     // ============================================================
 
     private fun createTopButton(
         text: String
     ): Button {
 
-        val button =
-            Button(this)
+        val button = Button(this)
 
-        button.text =
-            text
-
-        button.textSize =
-            12f
-
-        button.setTextColor(
-            Color.WHITE
-        )
+        button.text = text
+        button.textSize = 12f
+        button.setTextColor(Color.WHITE)
 
         button.setBackgroundColor(
             Color.TRANSPARENT
@@ -1663,18 +2015,18 @@ class MainActivity : Activity() {
         return button
     }
 
+    // ============================================================
+    // CATEGORY BUTTON
+    // ============================================================
+
     private fun createCategoryButton(
         text: String
     ): Button {
 
-        val button =
-            Button(this)
+        val button = Button(this)
 
-        button.text =
-            text
-
-        button.textSize =
-            12f
+        button.text = text
+        button.textSize = 12f
 
         button.setTextColor(
             Color.WHITE
@@ -1697,24 +2049,23 @@ class MainActivity : Activity() {
             0
         )
 
-        button.layoutParams =
-            params
+        button.layoutParams = params
 
         return button
     }
+
+    // ============================================================
+    // BLUE BUTTON
+    // ============================================================
 
     private fun createBlueButton(
         text: String
     ): Button {
 
-        val button =
-            Button(this)
+        val button = Button(this)
 
-        button.text =
-            text
-
-        button.textSize =
-            13f
+        button.text = text
+        button.textSize = 13f
 
         button.setTextColor(
             Color.WHITE
@@ -1726,6 +2077,10 @@ class MainActivity : Activity() {
 
         return button
     }
+
+    // ============================================================
+    // LARGE MENU BUTTON
+    // ============================================================
 
     private fun createLargeMenuButton(
         text: String
@@ -1747,25 +2102,24 @@ class MainActivity : Activity() {
             dp(15)
         )
 
-        button.layoutParams =
-            params
+        button.layoutParams = params
 
         return button
     }
+
+    // ============================================================
+    // PAGE TITLE
+    // ============================================================
 
     private fun addPageTitle(
         title: String,
         subtitle: String
     ) {
 
-        val titleView =
-            TextView(this)
+        val titleView = TextView(this)
 
-        titleView.text =
-            title
-
-        titleView.textSize =
-            27f
+        titleView.text = title
+        titleView.textSize = 27f
 
         titleView.setTextColor(
             Color.WHITE
@@ -1784,14 +2138,10 @@ class MainActivity : Activity() {
             )
         )
 
-        val subtitleView =
-            TextView(this)
+        val subtitleView = TextView(this)
 
-        subtitleView.text =
-            subtitle
-
-        subtitleView.textSize =
-            14f
+        subtitleView.text = subtitle
+        subtitleView.textSize = 14f
 
         subtitleView.setTextColor(
             Color.rgb(150, 175, 195)
@@ -1806,19 +2156,19 @@ class MainActivity : Activity() {
         )
     }
 
+    // ============================================================
+    // SECTION TITLE
+    // ============================================================
+
     private fun addSectionTitle(
         title: String,
         subtitle: String
     ) {
 
-        val titleView =
-            TextView(this)
+        val titleView = TextView(this)
 
-        titleView.text =
-            title
-
-        titleView.textSize =
-            21f
+        titleView.text = title
+        titleView.textSize = 21f
 
         titleView.setTextColor(
             Color.WHITE
@@ -1847,14 +2197,10 @@ class MainActivity : Activity() {
             params
         )
 
-        val subtitleView =
-            TextView(this)
+        val subtitleView = TextView(this)
 
-        subtitleView.text =
-            subtitle
-
-        subtitleView.textSize =
-            13f
+        subtitleView.text = subtitle
+        subtitleView.textSize = 13f
 
         subtitleView.setTextColor(
             Color.rgb(140, 165, 185)
@@ -1868,6 +2214,10 @@ class MainActivity : Activity() {
             )
         )
     }
+
+    // ============================================================
+    // LOADING
+    // ============================================================
 
     private fun addLoading() {
 
@@ -1893,12 +2243,17 @@ class MainActivity : Activity() {
         if (::loading.isInitialized) {
 
             loading.visibility =
-                if (visible)
+                if (visible) {
                     View.VISIBLE
-                else
+                } else {
                     View.GONE
+                }
         }
     }
+
+    // ============================================================
+    // ERROR
+    // ============================================================
 
     private fun showError(
         message: String
@@ -1906,14 +2261,10 @@ class MainActivity : Activity() {
 
         content.removeAllViews()
 
-        val error =
-            TextView(this)
+        val error = TextView(this)
 
-        error.text =
-            message
-
-        error.textSize =
-            15f
+        error.text = message
+        error.textSize = 15f
 
         error.setTextColor(
             Color.rgb(255, 130, 130)
@@ -1926,29 +2277,18 @@ class MainActivity : Activity() {
             dp(30)
         )
 
-        content.addView(error)
+        content.addView(
+            error,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
     }
 
-    private fun removeContentAfterCategoryArea() {
-
-        /*
-         * La pantalla se vuelve a construir
-         * para evitar duplicar las tarjetas
-         * cuando cambiamos de categoría.
-         *
-         * Conservamos las categorías recreándolas
-         * mediante renderLiveCategories/renderVodCategories.
-         */
-
-        if (currentSection == "live") {
-
-            renderLiveCategoryHeaderOnly()
-
-        } else if (currentSection == "vod") {
-
-            renderVodCategoryHeaderOnly()
-        }
-    }
+    // ============================================================
+    // LIVE CATEGORY HEADER
+    // ============================================================
 
     private fun renderLiveCategoryHeaderOnly() {
 
@@ -2010,6 +2350,10 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    // ============================================================
+    // VOD CATEGORY HEADER
+    // ============================================================
 
     private fun renderVodCategoryHeaderOnly() {
 
@@ -2073,7 +2417,7 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
-    // DATA CLASSES
+    // DATA MODELS
     // ============================================================
 
     data class LiveCategory(
@@ -2105,7 +2449,7 @@ class MainActivity : Activity() {
     )
 
     // ============================================================
-    // UTILIDADES
+    // URL ENCODING
     // ============================================================
 
     private fun encode(
@@ -2118,15 +2462,25 @@ class MainActivity : Activity() {
         )
     }
 
+    // ============================================================
+    // DP
+    // ============================================================
+
     private fun dp(
         value: Int
     ): Int {
 
         return (
             value *
-                resources.displayMetrics.density
+                    resources
+                        .displayMetrics
+                        .density
             ).toInt()
     }
+
+    // ============================================================
+    // DESTROY
+    // ============================================================
 
     override fun onDestroy() {
 
