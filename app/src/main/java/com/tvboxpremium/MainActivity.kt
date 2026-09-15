@@ -1,2470 +1,784 @@
 package com.tvboxpremium
 
 import android.app.Activity
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.text.InputType
-import android.text.TextUtils
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
-import android.widget.*
-import org.json.JSONArray
+import android.view.inputmethod.InputMethodManager
+import android.content.Context
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.TextView
+import android.graphics.drawable.GradientDrawable
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.util.concurrent.Executors
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : Activity() {
 
     companion object {
-        private const val SERVER_URL = "http://38.242.252.80:80"
+        private const val SERVER_URL =
+            "http://38.242.252.80:80"
     }
 
-    private val executor = Executors.newFixedThreadPool(4)
-
     private lateinit var root: FrameLayout
-    private lateinit var content: LinearLayout
-    private lateinit var loading: ProgressBar
-
-    /*
-     * Las credenciales solamente viven en memoria mientras
-     * la aplicación está abierta.
-     */
-    private var username = ""
-    private var password = ""
-
-    private var currentSection = "home"
-
-    private var liveCategories = mutableListOf<LiveCategory>()
-    private var vodCategories = mutableListOf<VodCategory>()
-
-    private var liveStreams = mutableListOf<LiveStream>()
-    private var vodStreams = mutableListOf<VodStream>()
-
-    private var selectedLiveCategoryId: String? = null
-    private var selectedVodCategoryId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        showLogin()
-    }
+        window.statusBarColor =
+            Color.rgb(2, 8, 16)
 
-    // ============================================================
-    // LOGIN
-    // ============================================================
-
-    private fun showLogin() {
+        window.navigationBarColor =
+            Color.rgb(2, 8, 16)
 
         root = FrameLayout(this)
-        root.setBackgroundColor(Color.rgb(3, 12, 25))
 
         setContentView(root)
 
-        val container = LinearLayout(this)
-        container.orientation = LinearLayout.VERTICAL
-        container.gravity = Gravity.CENTER
-        container.setPadding(
-            dp(35),
-            dp(25),
-            dp(35),
-            dp(25)
-        )
-
-        root.addView(
-            container,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        )
-
-        val title = TextView(this)
-
-        title.text = "TVBOX PREMIUM"
-        title.textSize = 30f
-        title.setTextColor(Color.WHITE)
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-        title.gravity = Gravity.CENTER
-
-        container.addView(
-            title,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(60)
-            )
-        )
-
-        val subtitle = TextView(this)
-
-        subtitle.text = "Inicia sesión para cargar tu contenido"
-        subtitle.textSize = 15f
-        subtitle.setTextColor(Color.rgb(160, 180, 200))
-        subtitle.gravity = Gravity.CENTER
-
-        container.addView(
-            subtitle,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(45)
-            )
-        )
-
-        // --------------------------------------------------------
-        // Usuario
-        // --------------------------------------------------------
-
-        val userInput = EditText(this)
-
-        userInput.hint = "Usuario"
-        userInput.setTextColor(Color.WHITE)
-        userInput.setHintTextColor(Color.rgb(130, 145, 160))
-        userInput.setSingleLine(true)
-
-        userInput.setPadding(
-            dp(18),
-            0,
-            dp(18),
-            0
-        )
-
-        userInput.setBackgroundColor(
-            Color.rgb(15, 30, 48)
-        )
-
-        val userParams = LinearLayout.LayoutParams(
-            dp(380),
-            dp(55)
-        )
-
-        userParams.setMargins(
-            0,
-            dp(18),
-            0,
-            dp(10)
-        )
-
-        container.addView(
-            userInput,
-            userParams
-        )
-
-        // --------------------------------------------------------
-        // Contraseña
-        // --------------------------------------------------------
-
-        val passInput = EditText(this)
-
-        passInput.hint = "Contraseña"
-        passInput.setTextColor(Color.WHITE)
-        passInput.setHintTextColor(Color.rgb(130, 145, 160))
-        passInput.setSingleLine(true)
-
-        passInput.inputType =
-            InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_VARIATION_PASSWORD
-
-        passInput.setPadding(
-            dp(18),
-            0,
-            dp(18),
-            0
-        )
-
-        passInput.setBackgroundColor(
-            Color.rgb(15, 30, 48)
-        )
-
-        val passParams = LinearLayout.LayoutParams(
-            dp(380),
-            dp(55)
-        )
-
-        passParams.setMargins(
-            0,
-            0,
-            0,
-            dp(18)
-        )
-
-        container.addView(
-            passInput,
-            passParams
-        )
-
-        // --------------------------------------------------------
-        // Botón login
-        // --------------------------------------------------------
-
-        val loginButton = Button(this)
-
-        loginButton.text = "INICIAR SESIÓN"
-        loginButton.textSize = 15f
-        loginButton.setTextColor(Color.WHITE)
-        loginButton.setBackgroundColor(
-            Color.rgb(22, 133, 245)
-        )
-
-        val loginParams = LinearLayout.LayoutParams(
-            dp(380),
-            dp(55)
-        )
-
-        container.addView(
-            loginButton,
-            loginParams
-        )
-
-        // --------------------------------------------------------
-        // Estado
-        // --------------------------------------------------------
-
-        val status = TextView(this)
-
-        status.textSize = 14f
-        status.gravity = Gravity.CENTER
-        status.setTextColor(
-            Color.rgb(150, 170, 190)
-        )
-
-        container.addView(
-            status,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(55)
-            )
-        )
-
-        // --------------------------------------------------------
-        // Acción login
-        // --------------------------------------------------------
-
-        loginButton.setOnClickListener {
-
-            val user = userInput.text.toString().trim()
-            val pass = passInput.text.toString()
-
-            if (user.isEmpty() || pass.isEmpty()) {
-
-                status.text =
-                    "Introduce usuario y contraseña"
-
-                return@setOnClickListener
-            }
-
-            loginButton.isEnabled = false
-
-            status.text =
-                "Conectando con el servidor..."
-
-            executor.execute {
-
-                try {
-
-                    val params = mapOf(
-                        "username" to user,
-                        "password" to pass
-                    )
-
-                    val json = apiRequest(params)
-
-                    val userInfo =
-                        json.optJSONObject("user_info")
-
-                    val auth =
-                        userInfo?.optString(
-                            "auth",
-                            "0"
-                        )
-
-                    if (
-                        auth == "1" ||
-                        auth.equals("true", true)
-                    ) {
-
-                        username = user
-                        password = pass
-
-                        runOnUiThread {
-
-                            status.text =
-                                "Login correcto"
-
-                            showHome()
-                        }
-
-                    } else {
-
-                        runOnUiThread {
-
-                            loginButton.isEnabled = true
-
-                            status.text =
-                                "Usuario o contraseña incorrectos"
-                        }
-                    }
-
-                } catch (e: Exception) {
-
-                    runOnUiThread {
-
-                        loginButton.isEnabled = true
-
-                        status.text =
-                            "Error de conexión: " +
-                                    (e.message
-                                        ?: "desconocido")
-                    }
-                }
-            }
-        }
+        showLogin()
     }
 
-    // ============================================================
-    // HOME
-    // ============================================================
+    // =========================================================
+    // LOGIN
+    // =========================================================
 
-    private fun showHome() {
+    private fun showLogin() {
 
         root.removeAllViews()
 
-        val main = LinearLayout(this)
-
-        main.orientation =
-            LinearLayout.VERTICAL
-
-        main.setBackgroundColor(
-            Color.rgb(3, 12, 25)
-        )
-
         root.addView(
-            main,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
+            LoginView(
+                context = this,
+                serverUrl = SERVER_URL
+            ) { username, password ->
+
+                authenticate(
+                    username,
+                    password
+                )
+            }
         )
-
-        // --------------------------------------------------------
-        // TOP BAR
-        // --------------------------------------------------------
-
-        val topBar = LinearLayout(this)
-
-        topBar.orientation =
-            LinearLayout.HORIZONTAL
-
-        topBar.gravity =
-            Gravity.CENTER_VERTICAL
-
-        topBar.setPadding(
-            dp(25),
-            0,
-            dp(25),
-            0
-        )
-
-        topBar.setBackgroundColor(
-            Color.rgb(5, 18, 34)
-        )
-
-        main.addView(
-            topBar,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(72)
-            )
-        )
-
-        val logo = TextView(this)
-
-        logo.text = "TVBOX PREMIUM"
-        logo.textSize = 21f
-        logo.setTextColor(Color.WHITE)
-        logo.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        topBar.addView(
-            logo,
-            LinearLayout.LayoutParams(
-                dp(220),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        val spacer = Space(this)
-
-        topBar.addView(
-            spacer,
-            LinearLayout.LayoutParams(
-                0,
-                1,
-                1f
-            )
-        )
-
-        val tvButton =
-            createTopButton("TV")
-
-        topBar.addView(tvButton)
-
-        val vodButton =
-            createTopButton("PELÍCULAS")
-
-        topBar.addView(vodButton)
-
-        val logoutButton =
-            createTopButton("SALIR")
-
-        topBar.addView(logoutButton)
-
-        tvButton.setOnClickListener {
-            showLive()
-        }
-
-        vodButton.setOnClickListener {
-            showVod()
-        }
-
-        logoutButton.setOnClickListener {
-
-            username = ""
-            password = ""
-
-            liveCategories.clear()
-            vodCategories.clear()
-            liveStreams.clear()
-            vodStreams.clear()
-
-            selectedLiveCategoryId = null
-            selectedVodCategoryId = null
-
-            showLogin()
-        }
-
-        // --------------------------------------------------------
-        // CONTENIDO SCROLL
-        // --------------------------------------------------------
-
-        content = LinearLayout(this)
-
-        content.orientation =
-            LinearLayout.VERTICAL
-
-        content.setPadding(
-            dp(25),
-            dp(20),
-            dp(25),
-            dp(20)
-        )
-
-        val scroll = ScrollView(this)
-
-        scroll.isFillViewport = true
-
-        scroll.addView(
-            content,
-            ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        main.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        )
-
-        // --------------------------------------------------------
-        // Loading global
-        // --------------------------------------------------------
-
-        loading = ProgressBar(this)
-
-        loading.visibility = View.GONE
-
-        root.addView(
-            loading,
-            FrameLayout.LayoutParams(
-                dp(55),
-                dp(55),
-                Gravity.CENTER
-            )
-        )
-
-        showDashboard()
     }
 
-    // ============================================================
-    // DASHBOARD
-    // ============================================================
+    // =========================================================
+    // AUTENTICACIÓN XTREAM
+    // =========================================================
 
-    private fun showDashboard() {
+    private fun authenticate(
+        username: String,
+        password: String
+    ) {
 
-        currentSection = "home"
+        Thread {
 
-        content.removeAllViews()
-
-        addHero()
-
-        addSectionTitle(
-            "TV EN VIVO",
-            "Canales de televisión"
-        )
-
-        val tvButton =
-            createLargeMenuButton(
-                "VER TELEVISIÓN EN VIVO"
-            )
-
-        content.addView(tvButton)
-
-        tvButton.setOnClickListener {
-            showLive()
-        }
-
-        addSectionTitle(
-            "PELÍCULAS",
-            "Catálogo VOD"
-        )
-
-        val movieButton =
-            createLargeMenuButton(
-                "VER PELÍCULAS"
-            )
-
-        content.addView(movieButton)
-
-        movieButton.setOnClickListener {
-            showVod()
-        }
-
-        /*
-         * Precargamos categorías.
-         */
-        loadLiveCategories()
-        loadVodCategories()
-    }
-
-    // ============================================================
-    // HERO
-    // ============================================================
-
-    private fun addHero() {
-
-        val hero = LinearLayout(this)
-
-        hero.orientation =
-            LinearLayout.VERTICAL
-
-        hero.gravity =
-            Gravity.BOTTOM
-
-        hero.setPadding(
-            dp(30),
-            dp(25),
-            dp(30),
-            dp(25)
-        )
-
-        hero.setBackgroundColor(
-            Color.rgb(8, 30, 52)
-        )
-
-        content.addView(
-            hero,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(230)
-            )
-        )
-
-        val title = TextView(this)
-
-        title.text = "TVBOX PREMIUM"
-        title.textSize = 32f
-        title.setTextColor(Color.WHITE)
-        title.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        hero.addView(title)
-
-        val subtitle = TextView(this)
-
-        subtitle.text =
-            "Tu entretenimiento en un solo lugar"
-
-        subtitle.textSize = 16f
-
-        subtitle.setTextColor(
-            Color.rgb(190, 205, 220)
-        )
-
-        hero.addView(subtitle)
-
-        val button =
-            createBlueButton("EXPLORAR TV")
-
-        val buttonParams =
-            LinearLayout.LayoutParams(
-                dp(180),
-                dp(50)
-            )
-
-        buttonParams.setMargins(
-            0,
-            dp(18),
-            0,
-            0
-        )
-
-        hero.addView(
-            button,
-            buttonParams
-        )
-
-        button.setOnClickListener {
-            showLive()
-        }
-    }
-
-    // ============================================================
-    // LIVE
-    // ============================================================
-
-    private fun showLive() {
-
-        currentSection = "live"
-
-        content.removeAllViews()
-
-        addPageTitle(
-            "TV EN VIVO",
-            "Canales disponibles"
-        )
-
-        addLoading()
-
-        if (liveCategories.isEmpty()) {
-
-            loadLiveCategories()
-
-        } else {
-
-            renderLiveCategories()
-        }
-    }
-
-    // ============================================================
-    // LIVE CATEGORIES
-    // ============================================================
-
-    private fun loadLiveCategories() {
-
-        executor.execute {
+            var connection:
+                    HttpURLConnection? = null
 
             try {
 
-                val array =
-                    apiRequestArray(
-                        mapOf(
-                            "action" to
-                                    "get_live_categories"
-                        )
+                val encodedUser =
+                    URLEncoder.encode(
+                        username,
+                        "UTF-8"
                     )
 
-                val result =
-                    mutableListOf<LiveCategory>()
-
-                for (i in 0 until array.length()) {
-
-                    val item =
-                        array.optJSONObject(i)
-                            ?: continue
-
-                    val categoryId =
-                        item.optString(
-                            "category_id"
-                        )
-
-                    val categoryName =
-                        item.optString(
-                            "category_name"
-                        )
-
-                    if (
-                        categoryId.isNotEmpty() &&
-                        categoryName.isNotEmpty()
-                    ) {
-
-                        result.add(
-                            LiveCategory(
-                                categoryId,
-                                categoryName
-                            )
-                        )
-                    }
-                }
-
-                liveCategories = result
-
-                runOnUiThread {
-
-                    if (
-                        currentSection == "live"
-                    ) {
-                        renderLiveCategories()
-                    }
-                }
-
-            } catch (e: Exception) {
-
-                runOnUiThread {
-
-                    if (
-                        currentSection == "live"
-                    ) {
-
-                        showError(
-                            "No se pudieron cargar " +
-                                    "las categorías TV:\n" +
-                                    (e.message
-                                        ?: "error desconocido")
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // RENDER LIVE CATEGORIES
-    // ============================================================
-
-    private fun renderLiveCategories() {
-
-        content.removeAllViews()
-
-        addPageTitle(
-            "TV EN VIVO",
-            "${liveCategories.size} categorías"
-        )
-
-        val categoriesScroll =
-            HorizontalScrollView(this)
-
-        val categories =
-            LinearLayout(this)
-
-        categories.orientation =
-            LinearLayout.HORIZONTAL
-
-        categoriesScroll.addView(categories)
-
-        content.addView(
-            categoriesScroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(65)
-            )
-        )
-
-        val allButton =
-            createCategoryButton("TODOS")
-
-        categories.addView(allButton)
-
-        allButton.setOnClickListener {
-
-            selectedLiveCategoryId = null
-
-            loadLiveStreams(null)
-        }
-
-        for (category in liveCategories) {
-
-            val button =
-                createCategoryButton(
-                    category.categoryName
-                )
-
-            categories.addView(button)
-
-            button.setOnClickListener {
-
-                selectedLiveCategoryId =
-                    category.categoryId
-
-                loadLiveStreams(
-                    category.categoryId
-                )
-            }
-        }
-
-        addSectionTitle(
-            "CANALES",
-            "Selecciona una categoría"
-        )
-
-        if (liveStreams.isEmpty()) {
-
-            val info = TextView(this)
-
-            info.text =
-                "Selecciona una categoría " +
-                        "para cargar los canales."
-
-            info.textSize = 15f
-
-            info.setTextColor(
-                Color.rgb(160, 180, 200)
-            )
-
-            content.addView(info)
-
-        } else {
-
-            renderLiveStreams()
-        }
-    }
-
-    // ============================================================
-    // LIVE STREAMS
-    // ============================================================
-
-    private fun loadLiveStreams(
-        categoryId: String?
-    ) {
-
-        showLoading(true)
-
-        executor.execute {
-
-            try {
-
-                val params =
-                    mutableMapOf(
-                        "action" to
-                                "get_live_streams"
+                val encodedPassword =
+                    URLEncoder.encode(
+                        password,
+                        "UTF-8"
                     )
 
-                if (
-                    !categoryId.isNullOrEmpty()
-                ) {
-                    params["category_id"] =
-                        categoryId
-                }
-
-                val array =
-                    apiRequestArray(params)
-
-                val result =
-                    mutableListOf<LiveStream>()
-
-                for (i in 0 until array.length()) {
-
-                    val item =
-                        array.optJSONObject(i)
-                            ?: continue
-
-                    result.add(
-                        LiveStream(
-                            streamId =
-                                item.optString(
-                                    "stream_id"
-                                ),
-
-                            name =
-                                item.optString(
-                                    "name"
-                                ),
-
-                            streamIcon =
-                                item.optString(
-                                    "stream_icon"
-                                ),
-
-                            categoryId =
-                                item.optString(
-                                    "category_id"
-                                ),
-
-                            streamType =
-                                item.optString(
-                                    "stream_type"
-                                )
-                        )
-                    )
-                }
-
-                liveStreams = result
-
-                runOnUiThread {
-
-                    showLoading(false)
-
-                    if (
-                        currentSection == "live"
-                    ) {
-                        renderLiveStreams()
-                    }
-                }
-
-            } catch (e: Exception) {
-
-                runOnUiThread {
-
-                    showLoading(false)
-
-                    showError(
-                        "Error cargando canales:\n" +
-                                (e.message
-                                    ?: "desconocido")
-                    )
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // RENDER LIVE STREAMS
-    // ============================================================
-
-    private fun renderLiveStreams() {
-
-        renderLiveCategoryHeaderOnly()
-
-        addSectionTitle(
-            "CANALES",
-            "${liveStreams.size} canales"
-        )
-
-        for (stream in liveStreams) {
-
-            val card =
-                createLiveCard(stream)
-
-            val cardParams =
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(76)
-                )
-
-            cardParams.setMargins(
-                0,
-                0,
-                0,
-                dp(8)
-            )
-
-            content.addView(
-                card,
-                cardParams
-            )
-
-            card.setOnClickListener {
-
-                onLiveSelected(stream)
-            }
-        }
-    }
-
-    // ============================================================
-    // LIVE CARD
-    // ============================================================
-
-    private fun createLiveCard(
-        stream: LiveStream
-    ): LinearLayout {
-
-        val card = LinearLayout(this)
-
-        card.orientation =
-            LinearLayout.HORIZONTAL
-
-        card.gravity =
-            Gravity.CENTER_VERTICAL
-
-        card.setPadding(
-            dp(15),
-            dp(8),
-            dp(15),
-            dp(8)
-        )
-
-        card.setBackgroundColor(
-            Color.rgb(9, 25, 43)
-        )
-
-        val icon = ImageView(this)
-
-        icon.scaleType =
-            ImageView.ScaleType.CENTER_CROP
-
-        icon.setBackgroundColor(
-            Color.rgb(15, 30, 48)
-        )
-
-        card.addView(
-            icon,
-            LinearLayout.LayoutParams(
-                dp(95),
-                dp(60)
-            )
-        )
-
-        if (
-            stream.streamIcon.isNotEmpty()
-        ) {
-            loadImage(
-                stream.streamIcon,
-                icon
-            )
-        }
-
-        val info = LinearLayout(this)
-
-        info.orientation =
-            LinearLayout.VERTICAL
-
-        info.gravity =
-            Gravity.CENTER_VERTICAL
-
-        info.setPadding(
-            dp(18),
-            0,
-            0,
-            0
-        )
-
-        val name = TextView(this)
-
-        name.text = stream.name
-        name.textSize = 17f
-        name.setTextColor(Color.WHITE)
-        name.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        info.addView(name)
-
-        val live = TextView(this)
-
-        live.text = "● EN VIVO"
-        live.textSize = 12f
-
-        live.setTextColor(
-            Color.rgb(80, 190, 255)
-        )
-
-        info.addView(live)
-
-        card.addView(
-            info,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        return card
-    }
-
-    // ============================================================
-    // VOD
-    // ============================================================
-
-    private fun showVod() {
-
-        currentSection = "vod"
-
-        content.removeAllViews()
-
-        addPageTitle(
-            "PELÍCULAS",
-            "Catálogo VOD"
-        )
-
-        addLoading()
-
-        if (vodCategories.isEmpty()) {
-
-            loadVodCategories()
-
-        } else {
-
-            renderVodCategories()
-        }
-    }
-
-    // ============================================================
-    // VOD CATEGORIES
-    // ============================================================
-
-    private fun loadVodCategories() {
-
-        executor.execute {
-
-            try {
-
-                val array =
-                    apiRequestArray(
-                        mapOf(
-                            "action" to
-                                    "get_vod_categories"
-                        )
-                    )
-
-                val result =
-                    mutableListOf<VodCategory>()
-
-                for (i in 0 until array.length()) {
-
-                    val item =
-                        array.optJSONObject(i)
-                            ?: continue
-
-                    val categoryId =
-                        item.optString(
-                            "category_id"
-                        )
-
-                    val categoryName =
-                        item.optString(
-                            "category_name"
-                        )
-
-                    if (
-                        categoryId.isNotEmpty() &&
-                        categoryName.isNotEmpty()
-                    ) {
-
-                        result.add(
-                            VodCategory(
-                                categoryId,
-                                categoryName
-                            )
-                        )
-                    }
-                }
-
-                vodCategories = result
-
-                runOnUiThread {
-
-                    if (
-                        currentSection == "vod"
-                    ) {
-                        renderVodCategories()
-                    }
-                }
-
-            } catch (e: Exception) {
-
-                runOnUiThread {
-
-                    if (
-                        currentSection == "vod"
-                    ) {
-
-                        showError(
-                            "No se pudieron cargar " +
-                                    "las categorías VOD:\n" +
-                                    (e.message
-                                        ?: "error desconocido")
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // RENDER VOD CATEGORIES
-    // ============================================================
-
-    private fun renderVodCategories() {
-
-        content.removeAllViews()
-
-        addPageTitle(
-            "PELÍCULAS",
-            "${vodCategories.size} categorías"
-        )
-
-        val categoriesScroll =
-            HorizontalScrollView(this)
-
-        val categories =
-            LinearLayout(this)
-
-        categories.orientation =
-            LinearLayout.HORIZONTAL
-
-        categoriesScroll.addView(categories)
-
-        content.addView(
-            categoriesScroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(65)
-            )
-        )
-
-        val allButton =
-            createCategoryButton("TODAS")
-
-        categories.addView(allButton)
-
-        allButton.setOnClickListener {
-
-            selectedVodCategoryId = null
-
-            loadVodStreams(null)
-        }
-
-        for (category in vodCategories) {
-
-            val button =
-                createCategoryButton(
-                    category.categoryName
-                )
-
-            categories.addView(button)
-
-            button.setOnClickListener {
-
-                selectedVodCategoryId =
-                    category.categoryId
-
-                loadVodStreams(
-                    category.categoryId
-                )
-            }
-        }
-
-        addSectionTitle(
-            "PELÍCULAS",
-            "Selecciona una categoría"
-        )
-
-        val info = TextView(this)
-
-        info.text =
-            "Selecciona una categoría " +
-                    "para cargar las películas."
-
-        info.textSize = 15f
-
-        info.setTextColor(
-            Color.rgb(160, 180, 200)
-        )
-
-        content.addView(info)
-    }
-
-    // ============================================================
-    // VOD STREAMS
-    // ============================================================
-
-    private fun loadVodStreams(
-        categoryId: String?
-    ) {
-
-        showLoading(true)
-
-        executor.execute {
-
-            try {
-
-                val params =
-                    mutableMapOf(
-                        "action" to
-                                "get_vod_streams"
-                    )
-
-                if (
-                    !categoryId.isNullOrEmpty()
-                ) {
-                    params["category_id"] =
-                        categoryId
-                }
-
-                val array =
-                    apiRequestArray(params)
-
-                val result =
-                    mutableListOf<VodStream>()
-
-                for (i in 0 until array.length()) {
-
-                    val item =
-                        array.optJSONObject(i)
-                            ?: continue
-
-                    result.add(
-                        VodStream(
-                            streamId =
-                                item.optString(
-                                    "stream_id"
-                                ),
-
-                            name =
-                                item.optString(
-                                    "name"
-                                ),
-
-                            streamIcon =
-                                item.optString(
-                                    "stream_icon"
-                                ),
-
-                            categoryId =
-                                item.optString(
-                                    "category_id"
-                                ),
-
-                            containerExtension =
-                                item.optString(
-                                    "container_extension",
-                                    "mp4"
-                                ),
-
-                            rating =
-                                item.optString(
-                                    "rating"
-                                ),
-
-                            plot =
-                                item.optString(
-                                    "plot"
-                                )
-                        )
-                    )
-                }
-
-                vodStreams = result
-
-                runOnUiThread {
-
-                    showLoading(false)
-
-                    if (
-                        currentSection == "vod"
-                    ) {
-                        renderVodStreams()
-                    }
-                }
-
-            } catch (e: Exception) {
-
-                runOnUiThread {
-
-                    showLoading(false)
-
-                    showError(
-                        "Error cargando películas:\n" +
-                                (e.message
-                                    ?: "desconocido")
-                    )
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // RENDER VOD
-    // ============================================================
-
-    private fun renderVodStreams() {
-
-        renderVodCategoryHeaderOnly()
-
-        addSectionTitle(
-            "PELÍCULAS",
-            "${vodStreams.size} títulos"
-        )
-
-        val grid = LinearLayout(this)
-
-        grid.orientation =
-            LinearLayout.VERTICAL
-
-        content.addView(grid)
-
-        var row: LinearLayout? = null
-
-        for (index in vodStreams.indices) {
-
-            if (index % 3 == 0) {
-
-                row = LinearLayout(this)
-
-                row.orientation =
-                    LinearLayout.HORIZONTAL
-
-                val rowParams =
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(260)
-                    )
-
-                rowParams.setMargins(
-                    0,
-                    0,
-                    0,
-                    dp(8)
-                )
-
-                grid.addView(
-                    row,
-                    rowParams
-                )
-            }
-
-            val movie =
-                vodStreams[index]
-
-            val card =
-                createVodCard(movie)
-
-            val cardParams =
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(245),
-                    1f
-                )
-
-            cardParams.setMargins(
-                0,
-                0,
-                dp(8),
-                0
-            )
-
-            row?.addView(
-                card,
-                cardParams
-            )
-
-            card.setOnClickListener {
-
-                onVodSelected(movie)
-            }
-        }
-    }
-
-    // ============================================================
-    // VOD CARD
-    // ============================================================
-
-    private fun createVodCard(
-        movie: VodStream
-    ): LinearLayout {
-
-        val card = LinearLayout(this)
-
-        card.orientation =
-            LinearLayout.VERTICAL
-
-        card.setPadding(
-            dp(6),
-            dp(6),
-            dp(6),
-            dp(6)
-        )
-
-        card.setBackgroundColor(
-            Color.rgb(9, 25, 43)
-        )
-
-        val poster = ImageView(this)
-
-        poster.scaleType =
-            ImageView.ScaleType.CENTER_CROP
-
-        poster.setBackgroundColor(
-            Color.rgb(15, 30, 48)
-        )
-
-        card.addView(
-            poster,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(175)
-            )
-        )
-
-        if (
-            movie.streamIcon.isNotEmpty()
-        ) {
-
-            loadImage(
-                movie.streamIcon,
-                poster
-            )
-        }
-
-        val title = TextView(this)
-
-        title.text = movie.name
-        title.textSize = 14f
-        title.setTextColor(Color.WHITE)
-
-        title.maxLines = 2
-
-        title.ellipsize =
-            TextUtils.TruncateAt.END
-
-        title.setPadding(
-            dp(5),
-            dp(8),
-            dp(5),
-            0
-        )
-
-        card.addView(title)
-
-        if (
-            movie.rating.isNotEmpty()
-        ) {
-
-            val rating = TextView(this)
-
-            rating.text =
-                "★ ${movie.rating}"
-
-            rating.textSize = 12f
-
-            rating.setTextColor(
-                Color.rgb(150, 190, 255)
-            )
-
-            rating.setPadding(
-                dp(5),
-                dp(3),
-                0,
-                0
-            )
-
-            card.addView(rating)
-        }
-
-        return card
-    }
-
-    // ============================================================
-    // SELECT LIVE
-    // ============================================================
-
-    private fun onLiveSelected(
-        stream: LiveStream
-    ) {
-
-        /*
-         * Xtream normalmente usa .ts para live.
-         * Si la API informa m3u8, usamos m3u8.
-         *
-         * OJO:
-         * El servidor puede redirigir posteriormente
-         * este endpoint hacia HLS. Eso lo resolveremos
-         * en el reproductor.
-         */
-
-        val extension =
-            when {
-
-                stream.streamType.equals(
-                    "m3u8",
-                    true
-                ) -> "m3u8"
-
-                stream.streamType.equals(
-                    "hls",
-                    true
-                ) -> "m3u8"
-
-                else -> "ts"
-            }
-
-        val url =
-            "$SERVER_URL/live/" +
-                    "${encode(username)}/" +
-                    "${encode(password)}/" +
-                    "${stream.streamId}." +
-                    extension
-
-        /*
-         * Por ahora no mostramos la URL ni
-         * la escribimos en logs.
-         */
-
-        showStreamDialog(
-            stream.name,
-            url,
-            false
-        )
-    }
-
-    // ============================================================
-    // SELECT VOD
-    // ============================================================
-
-    private fun onVodSelected(
-        movie: VodStream
-    ) {
-
-        val extension =
-            movie.containerExtension
-                .ifEmpty {
-                    "mp4"
-                }
-
-        val url =
-            "$SERVER_URL/movie/" +
-                    "${encode(username)}/" +
-                    "${encode(password)}/" +
-                    "${movie.streamId}." +
-                    extension
-
-        showStreamDialog(
-            movie.name,
-            url,
-            true
-        )
-    }
-
-    // ============================================================
-    // STREAM DIALOG
-    // ============================================================
-
-    private fun showStreamDialog(
-        title: String,
-        url: String,
-        isVod: Boolean
-    ) {
-
-        val box = LinearLayout(this)
-
-        box.orientation =
-            LinearLayout.VERTICAL
-
-        box.setPadding(
-            dp(30),
-            dp(20),
-            dp(30),
-            dp(20)
-        )
-
-        val titleView = TextView(this)
-
-        titleView.text = title
-        titleView.textSize = 20f
-        titleView.setTextColor(Color.WHITE)
-
-        titleView.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        box.addView(titleView)
-
-        val info = TextView(this)
-
-        info.text =
-            if (isVod) {
-                "Película seleccionada.\n\n" +
-                        "El siguiente paso será " +
-                        "conectarla al reproductor."
-            } else {
-                "Canal seleccionado.\n\n" +
-                        "El siguiente paso será " +
-                        "conectarlo al reproductor."
-            }
-
-        info.textSize = 14f
-
-        info.setTextColor(
-            Color.rgb(170, 190, 210)
-        )
-
-        info.setPadding(
-            0,
-            dp(15),
-            0,
-            dp(15)
-        )
-
-        box.addView(info)
-
-        val dialog =
-            android.app.AlertDialog.Builder(this)
-                .setView(box)
-                .setPositiveButton(
-                    "OK",
-                    null
-                )
-                .create()
-
-        dialog.setOnShowListener {
-
-            /*
-             * No mostramos la URL para evitar
-             * exponer usuario/contraseña.
-             */
-
-            val button =
-                dialog.getButton(
-                    android.app.AlertDialog.BUTTON_POSITIVE
-                )
-
-            button.setTextColor(
-                Color.rgb(22, 133, 245)
-            )
-        }
-
-        dialog.show()
-    }
-
-    // ============================================================
-    // API JSON OBJECT
-    // ============================================================
-
-    private fun apiRequest(
-        params: Map<String, String>
-    ): JSONObject {
-
-        val url =
-            buildApiUrl(params)
-
-        val connection =
-            URL(url).openConnection()
-                    as HttpURLConnection
-
-        connection.requestMethod = "GET"
-
-        connection.connectTimeout =
-            15000
-
-        connection.readTimeout =
-            20000
-
-        connection.useCaches = false
-
-        try {
-
-            val code =
-                connection.responseCode
-
-            val input =
-                if (code in 200..299) {
-                    connection.inputStream
-                } else {
-                    connection.errorStream
-                }
-
-            if (input == null) {
-
-                throw Exception(
-                    "HTTP $code"
-                )
-            }
-
-            val reader =
-                BufferedReader(
-                    InputStreamReader(
-                        input,
-                        Charsets.UTF_8
-                    )
-                )
-
-            val response =
-                reader.use {
-                    it.readText()
-                }
-
-            if (code !in 200..299) {
-
-                throw Exception(
-                    "HTTP $code: $response"
-                )
-            }
-
-            return JSONObject(response)
-
-        } finally {
-
-            connection.disconnect()
-        }
-    }
-
-    // ============================================================
-    // API JSON ARRAY
-    // ============================================================
-
-    private fun apiRequestArray(
-        params: Map<String, String>
-    ): JSONArray {
-
-        val url =
-            buildApiUrl(params)
-
-        val connection =
-            URL(url).openConnection()
-                    as HttpURLConnection
-
-        connection.requestMethod = "GET"
-
-        connection.connectTimeout =
-            15000
-
-        connection.readTimeout =
-            30000
-
-        connection.useCaches = false
-
-        try {
-
-            val code =
-                connection.responseCode
-
-            val input =
-                if (code in 200..299) {
-                    connection.inputStream
-                } else {
-                    connection.errorStream
-                }
-
-            if (input == null) {
-
-                throw Exception(
-                    "HTTP $code"
-                )
-            }
-
-            val reader =
-                BufferedReader(
-                    InputStreamReader(
-                        input,
-                        Charsets.UTF_8
-                    )
-                )
-
-            val response =
-                reader.use {
-                    it.readText()
-                }
-
-            if (code !in 200..299) {
-
-                throw Exception(
-                    "HTTP $code: $response"
-                )
-            }
-
-            return JSONArray(response)
-
-        } finally {
-
-            connection.disconnect()
-        }
-    }
-
-    // ============================================================
-    // BUILD API URL
-    // ============================================================
-
-    private fun buildApiUrl(
-        params: Map<String, String>
-    ): String {
-
-        val query =
-            StringBuilder()
-
-        query.append(
-            "username="
-        )
-
-        query.append(
-            encode(username)
-        )
-
-        query.append(
-            "&password="
-        )
-
-        query.append(
-            encode(password)
-        )
-
-        for ((key, value) in params) {
-
-            query.append("&")
-
-            query.append(
-                encode(key)
-            )
-
-            query.append("=")
-
-            query.append(
-                encode(value)
-            )
-        }
-
-        return "$SERVER_URL/player_api.php?$query"
-    }
-
-    // ============================================================
-    // IMAGE LOADER
-    // ============================================================
-
-    private fun loadImage(
-        imageUrl: String,
-        imageView: ImageView
-    ) {
-
-        executor.execute {
-
-            try {
-
-                val connection =
-                    URL(imageUrl)
-                        .openConnection()
+                val apiUrl =
+                    "$SERVER_URL/player_api.php" +
+                            "?username=$encodedUser" +
+                            "&password=$encodedPassword"
+
+                val url =
+                    URL(apiUrl)
+
+                connection =
+                    url.openConnection()
                             as HttpURLConnection
+
+                connection.requestMethod =
+                    "GET"
 
                 connection.connectTimeout =
                     10000
 
                 connection.readTimeout =
-                    15000
+                    10000
 
-                connection.useCaches = true
+                connection.instanceFollowRedirects =
+                    true
 
-                val bitmap =
-                    connection.inputStream.use {
-                        BitmapFactory.decodeStream(it)
+                val responseCode =
+                    connection.responseCode
+
+                if (
+                    responseCode !in
+                    200..299
+                ) {
+
+                    runOnUiThread {
+
+                        showLoginError(
+                            "No se pudo conectar al servidor."
+                        )
                     }
 
-                connection.disconnect()
+                    return@Thread
+                }
 
-                if (bitmap != null) {
+                val response =
+                    connection.inputStream
+                        .bufferedReader()
+                        .use {
+                            it.readText()
+                        }
+
+                val json =
+                    JSONObject(response)
+
+                val userInfo =
+                    json.optJSONObject(
+                        "user_info"
+                    )
+
+                if (userInfo == null) {
+
+                    runOnUiThread {
+
+                        showLoginError(
+                            "Respuesta inválida del servidor."
+                        )
+                    }
+
+                    return@Thread
+                }
+
+                val auth =
+                    userInfo.optString(
+                        "auth",
+                        "0"
+                    )
+
+                if (
+                    auth == "1" ||
+                    auth.equals(
+                        "true",
+                        ignoreCase = true
+                    )
+                ) {
+
+                    val server =
+                        XtreamSession(
+                            serverUrl = SERVER_URL,
+                            username = username,
+                            password = password
+                        )
+
+                    runOnUiThread {
+
+                        hideKeyboard()
+
+                        showHome(
+                            server
+                        )
+                    }
+
+                } else {
+
+                    val status =
+                        userInfo.optString(
+                            "status",
+                            ""
+                        )
 
                     runOnUiThread {
 
                         if (
-                            !isFinishing &&
-                            !isDestroyed
+                            status.isNotEmpty()
                         ) {
-                            imageView.setImageBitmap(
-                                bitmap
+
+                            showLoginError(
+                                "Acceso rechazado: $status"
+                            )
+
+                        } else {
+
+                            showLoginError(
+                                "Usuario o contraseña incorrectos."
                             )
                         }
                     }
                 }
 
-            } catch (_: Exception) {
+            } catch (e: Exception) {
 
-                /*
-                 * Dejamos el placeholder.
-                 */
-            }
-        }
-    }
+                runOnUiThread {
 
-    // ============================================================
-    // TOP BUTTON
-    // ============================================================
-
-    private fun createTopButton(
-        text: String
-    ): Button {
-
-        val button = Button(this)
-
-        button.text = text
-        button.textSize = 12f
-        button.setTextColor(Color.WHITE)
-
-        button.setBackgroundColor(
-            Color.TRANSPARENT
-        )
-
-        button.setPadding(
-            dp(12),
-            0,
-            dp(12),
-            0
-        )
-
-        return button
-    }
-
-    // ============================================================
-    // CATEGORY BUTTON
-    // ============================================================
-
-    private fun createCategoryButton(
-        text: String
-    ): Button {
-
-        val button = Button(this)
-
-        button.text = text
-        button.textSize = 12f
-
-        button.setTextColor(
-            Color.WHITE
-        )
-
-        button.setBackgroundColor(
-            Color.rgb(15, 45, 75)
-        )
-
-        val params =
-            LinearLayout.LayoutParams(
-                dp(150),
-                dp(50)
-            )
-
-        params.setMargins(
-            0,
-            0,
-            dp(8),
-            0
-        )
-
-        button.layoutParams = params
-
-        return button
-    }
-
-    // ============================================================
-    // BLUE BUTTON
-    // ============================================================
-
-    private fun createBlueButton(
-        text: String
-    ): Button {
-
-        val button = Button(this)
-
-        button.text = text
-        button.textSize = 13f
-
-        button.setTextColor(
-            Color.WHITE
-        )
-
-        button.setBackgroundColor(
-            Color.rgb(22, 133, 245)
-        )
-
-        return button
-    }
-
-    // ============================================================
-    // LARGE MENU BUTTON
-    // ============================================================
-
-    private fun createLargeMenuButton(
-        text: String
-    ): Button {
-
-        val button =
-            createBlueButton(text)
-
-        val params =
-            LinearLayout.LayoutParams(
-                dp(260),
-                dp(55)
-            )
-
-        params.setMargins(
-            0,
-            0,
-            0,
-            dp(15)
-        )
-
-        button.layoutParams = params
-
-        return button
-    }
-
-    // ============================================================
-    // PAGE TITLE
-    // ============================================================
-
-    private fun addPageTitle(
-        title: String,
-        subtitle: String
-    ) {
-
-        val titleView = TextView(this)
-
-        titleView.text = title
-        titleView.textSize = 27f
-
-        titleView.setTextColor(
-            Color.WHITE
-        )
-
-        titleView.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        content.addView(
-            titleView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(45)
-            )
-        )
-
-        val subtitleView = TextView(this)
-
-        subtitleView.text = subtitle
-        subtitleView.textSize = 14f
-
-        subtitleView.setTextColor(
-            Color.rgb(150, 175, 195)
-        )
-
-        content.addView(
-            subtitleView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(35)
-            )
-        )
-    }
-
-    // ============================================================
-    // SECTION TITLE
-    // ============================================================
-
-    private fun addSectionTitle(
-        title: String,
-        subtitle: String
-    ) {
-
-        val titleView = TextView(this)
-
-        titleView.text = title
-        titleView.textSize = 21f
-
-        titleView.setTextColor(
-            Color.WHITE
-        )
-
-        titleView.setTypeface(
-            Typeface.DEFAULT,
-            Typeface.BOLD
-        )
-
-        val params =
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(50)
-            )
-
-        params.setMargins(
-            0,
-            dp(20),
-            0,
-            0
-        )
-
-        content.addView(
-            titleView,
-            params
-        )
-
-        val subtitleView = TextView(this)
-
-        subtitleView.text = subtitle
-        subtitleView.textSize = 13f
-
-        subtitleView.setTextColor(
-            Color.rgb(140, 165, 185)
-        )
-
-        content.addView(
-            subtitleView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(30)
-            )
-        )
-    }
-
-    // ============================================================
-    // LOADING
-    // ============================================================
-
-    private fun addLoading() {
-
-        val progress =
-            ProgressBar(this)
-
-        progress.tag =
-            "content_loading"
-
-        content.addView(
-            progress,
-            LinearLayout.LayoutParams(
-                dp(45),
-                dp(45)
-            )
-        )
-    }
-
-    private fun showLoading(
-        visible: Boolean
-    ) {
-
-        if (::loading.isInitialized) {
-
-            loading.visibility =
-                if (visible) {
-                    View.VISIBLE
-                } else {
-                    View.GONE
+                    showLoginError(
+                        "Error de conexión: ${e.message ?: "servidor no disponible"}"
+                    )
                 }
-        }
+
+            } finally {
+
+                connection?.disconnect()
+            }
+
+        }.start()
     }
 
-    // ============================================================
-    // ERROR
-    // ============================================================
+    // =========================================================
+    // ERROR LOGIN
+    // =========================================================
 
-    private fun showError(
+    private fun showLoginError(
         message: String
     ) {
 
-        content.removeAllViews()
+        val view =
+            root.getChildAt(0)
 
-        val error = TextView(this)
+        if (
+            view is LoginView
+        ) {
 
-        error.text = message
-        error.textSize = 15f
+            view.showError(
+                message
+            )
+        }
+    }
 
-        error.setTextColor(
-            Color.rgb(255, 130, 130)
-        )
+    // =========================================================
+    // HOME
+    // =========================================================
 
-        error.setPadding(
-            dp(20),
-            dp(30),
-            dp(20),
-            dp(30)
-        )
+    private fun showHome(
+        session: XtreamSession
+    ) {
 
-        content.addView(
-            error,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+        root.removeAllViews()
+
+        root.addView(
+            HomeView(
+                context = this,
+                session = session
             )
         )
     }
 
-    // ============================================================
-    // LIVE CATEGORY HEADER
-    // ============================================================
+    private fun hideKeyboard() {
 
-    private fun renderLiveCategoryHeaderOnly() {
+        val imm =
+            getSystemService(
+                Context.INPUT_METHOD_SERVICE
+            ) as InputMethodManager
 
-        content.removeAllViews()
-
-        addPageTitle(
-            "TV EN VIVO",
-            "${liveCategories.size} categorías"
+        imm.hideSoftInputFromWindow(
+            root.windowToken,
+            0
         )
+    }
 
-        val scroll =
-            HorizontalScrollView(this)
+    override fun onBackPressed() {
 
-        val row =
-            LinearLayout(this)
+        if (
+            root.childCount > 0 &&
+            root.getChildAt(0) is HomeView
+        ) {
 
-        row.orientation =
-            LinearLayout.HORIZONTAL
+            showLogin()
 
-        scroll.addView(row)
+        } else {
 
-        content.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(65)
+            super.onBackPressed()
+        }
+    }
+}
+
+
+// =============================================================
+// SESIÓN XTREAM
+// =============================================================
+
+data class XtreamSession(
+    val serverUrl: String,
+    val username: String,
+    val password: String
+)
+
+
+// =============================================================
+// LOGIN VIEW
+// =============================================================
+
+class LoginView(
+    context: Context,
+    private val serverUrl: String,
+    private val onLogin:
+        (String, String) -> Unit
+) : FrameLayout(context) {
+
+    private val background =
+        LoginBackground(context)
+
+    private val username =
+        EditText(context)
+
+    private val password =
+        EditText(context)
+
+    private val loginButton =
+        TextView(context)
+
+    private val errorText =
+        TextView(context)
+
+    init {
+
+        setWillNotDraw(false)
+
+        addView(
+            background,
+            LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.MATCH_PARENT
             )
         )
 
-        val all =
-            createCategoryButton("TODOS")
+        createLogin()
+    }
 
-        row.addView(all)
+    private fun createLogin() {
 
-        all.setOnClickListener {
+        // =====================================================
+        // SERVIDOR
+        // =====================================================
 
-            selectedLiveCategoryId = null
+        val serverText =
+            TextView(context)
 
-            loadLiveStreams(null)
+        serverText.text =
+            serverUrl
+
+        serverText.gravity =
+            Gravity.CENTER
+
+        serverText.setTextColor(
+            Color.rgb(
+                90,
+                150,
+                205
+            )
+        )
+
+        serverText.textSize =
+            12f
+
+        val serverParams =
+            LayoutParams(
+                dp(450),
+                dp(35)
+            )
+
+        serverParams.gravity =
+            Gravity.CENTER
+
+        serverParams.topMargin =
+            dp(-125)
+
+        addView(
+            serverText,
+            serverParams
+        )
+
+        // =====================================================
+        // USUARIO
+        // =====================================================
+
+        username.setSingleLine(true)
+
+        username.hint =
+            "Usuario"
+
+        username.setTextColor(
+            Color.WHITE
+        )
+
+        username.setHintTextColor(
+            Color.rgb(
+                130,
+                150,
+                170
+            )
+        )
+
+        username.textSize =
+            17f
+
+        username.setPadding(
+            dp(22),
+            0,
+            dp(22),
+            0
+        )
+
+        username.background =
+            roundedBackground(
+                Color.rgb(
+                    10,
+                    28,
+                    47
+                ),
+                Color.rgb(
+                    30,
+                    75,
+                    110
+                )
+            )
+
+        val userParams =
+            LayoutParams(
+                dp(390),
+                dp(58)
+            )
+
+        userParams.gravity =
+            Gravity.CENTER
+
+        userParams.topMargin =
+            dp(-55)
+
+        addView(
+            username,
+            userParams
+        )
+
+        // =====================================================
+        // CONTRASEÑA
+        // =====================================================
+
+        password.setSingleLine(true)
+
+        password.hint =
+            "Contraseña"
+
+        password.setTextColor(
+            Color.WHITE
+        )
+
+        password.setHintTextColor(
+            Color.rgb(
+                130,
+                150,
+                170
+            )
+        )
+
+        password.textSize =
+            17f
+
+        password.setPadding(
+            dp(22),
+            0,
+            dp(22),
+            0
+        )
+
+        password.inputType =
+            InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
+
+        password.background =
+            roundedBackground(
+                Color.rgb(
+                    10,
+                    28,
+                    47
+                ),
+                Color.rgb(
+                    30,
+                    75,
+                    110
+                )
+            )
+
+        val passParams =
+            LayoutParams(
+                dp(390),
+                dp(58)
+            )
+
+        passParams.gravity =
+            Gravity.CENTER
+
+        passParams.topMargin =
+            dp(15)
+
+        addView(
+            password,
+            passParams
+        )
+
+        // =====================================================
+        // BOTÓN
+        // =====================================================
+
+        loginButton.text =
+            "INICIAR SESIÓN"
+
+        loginButton.gravity =
+            Gravity.CENTER
+
+        loginButton.setTextColor(
+            Color.WHITE
+        )
+
+        loginButton.textSize =
+            16f
+
+        loginButton.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+        )
+
+        loginButton.isFocusable =
+            true
+
+        loginButton.isClickable =
+            true
+
+        loginButton.background =
+            roundedBackground(
+                Color.rgb(
+                    15,
+                    115,
+                    225
+                ),
+                Color.rgb(
+                    70,
+                    175,
+                    255
+                )
+            )
+
+        val loginParams =
+            LayoutParams(
+                dp(390),
+                dp(58)
+            )
+
+        loginParams.gravity =
+            Gravity.CENTER
+
+        loginParams.topMargin =
+            dp(100)
+
+        addView(
+            loginButton,
+            loginParams
+        )
+
+        loginButton.setOnClickListener {
+
+            val user =
+                username.text
+                    .toString()
+                    .trim()
+
+            val pass =
+                password.text
+                    .toString()
+
+            if (
+                user.isEmpty() ||
+                pass.isEmpty()
+            ) {
+
+                showError(
+                    "Ingresa usuario y contraseña."
+                )
+
+                return@setOnClickListener
+            }
+
+            loginButton.text =
+                "CONECTANDO..."
+
+            loginButton.isEnabled =
+                false
+
+            errorText.text = ""
+
+            onLogin(
+                user,
+                pass
+            )
         }
 
-        for (category in liveCategories) {
+        // =====================================================
+        // ERROR
+        // =====================================================
 
-            val button =
-                createCategoryButton(
-                    category.categoryName
-                )
+        errorText.gravity =
+            Gravity.CENTER
 
-            row.addView(button)
+        errorText.setTextColor(
+            Color.rgb(
+                255,
+                105,
+                105
+            )
+        )
 
-            button.setOnClickListener {
+        errorText.textSize =
+            13f
 
-                selectedLiveCategoryId =
-                    category.categoryId
+        val errorParams =
+            LayoutParams(
+                dp(500),
+                dp(45)
+            )
 
-                loadLiveStreams(
-                    category.categoryId
-                )
+        errorParams.gravity =
+            Gravity.CENTER
+
+        errorParams.topMargin =
+            dp(165)
+
+        addView(
+            errorText,
+            errorParams
+        )
+    }
+
+    fun showError(
+        message: String
+    ) {
+
+        loginButton.text =
+            "INICIAR SESIÓN"
+
+        loginButton.isEnabled =
+            true
+
+        errorText.text =
+            message
+
+        username.requestFocus()
+    }
+
+    override fun onAttachedToWindow() {
+
+        super.onAttachedToWindow()
+
+        username.requestFocus()
+    }
+
+    override fun onKeyDown(
+        keyCode: Int,
+        event: KeyEvent
+    ): Boolean {
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+                if (
+                    username.hasFocus()
+                ) {
+
+                    password.requestFocus()
+
+                    return true
+                }
+
+                if (
+                    password.hasFocus()
+                ) {
+
+                    loginButton.requestFocus()
+
+                    return true
+                }
+            }
+
+            KeyEvent.KEYCODE_DPAD_UP -> {
+
+                if (
+                    loginButton.hasFocus()
+                ) {
+
+                    password.requestFocus()
+
+                    return true
+                }
+
+                if (
+                    password.hasFocus()
+                ) {
+
+                    username.requestFocus()
+
+                    return true
+                }
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+
+                if (
+                    loginButton.hasFocus()
+                ) {
+
+                    loginButton.performClick()
+
+                    return true
+                }
             }
         }
+
+        return super.onKeyDown(
+            keyCode,
+            event
+        )
     }
 
-    // ============================================================
-    // VOD CATEGORY HEADER
-    // ============================================================
+    private fun roundedBackground(
+        fill: Int,
+        stroke: Int
+    ): GradientDrawable {
 
-    private fun renderVodCategoryHeaderOnly() {
+        return GradientDrawable().apply {
 
-        content.removeAllViews()
+            setColor(fill)
 
-        addPageTitle(
-            "PELÍCULAS",
-            "${vodCategories.size} categorías"
-        )
+            cornerRadius =
+                dp(12).toFloat()
 
-        val scroll =
-            HorizontalScrollView(this)
-
-        val row =
-            LinearLayout(this)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        scroll.addView(row)
-
-        content.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(65)
+            setStroke(
+                dp(1),
+                stroke
             )
-        )
-
-        val all =
-            createCategoryButton("TODAS")
-
-        row.addView(all)
-
-        all.setOnClickListener {
-
-            selectedVodCategoryId = null
-
-            loadVodStreams(null)
-        }
-
-        for (category in vodCategories) {
-
-            val button =
-                createCategoryButton(
-                    category.categoryName
-                )
-
-            row.addView(button)
-
-            button.setOnClickListener {
-
-                selectedVodCategoryId =
-                    category.categoryId
-
-                loadVodStreams(
-                    category.categoryId
-                )
-            }
         }
     }
-
-    // ============================================================
-    // DATA MODELS
-    // ============================================================
-
-    data class LiveCategory(
-        val categoryId: String,
-        val categoryName: String
-    )
-
-    data class VodCategory(
-        val categoryId: String,
-        val categoryName: String
-    )
-
-    data class LiveStream(
-        val streamId: String,
-        val name: String,
-        val streamIcon: String,
-        val categoryId: String,
-        val streamType: String
-    )
-
-    data class VodStream(
-        val streamId: String,
-        val name: String,
-        val streamIcon: String,
-        val categoryId: String,
-        val containerExtension: String,
-        val rating: String,
-        val plot: String
-    )
-
-    // ============================================================
-    // URL ENCODING
-    // ============================================================
-
-    private fun encode(
-        value: String
-    ): String {
-
-        return URLEncoder.encode(
-            value,
-            "UTF-8"
-        )
-    }
-
-    // ============================================================
-    // DP
-    // ============================================================
 
     private fun dp(
         value: Int
@@ -2472,20 +786,2313 @@ class MainActivity : Activity() {
 
         return (
             value *
-                    resources
-                        .displayMetrics
-                        .density
+                    resources.displayMetrics.density
             ).toInt()
     }
+}
 
-    // ============================================================
-    // DESTROY
-    // ============================================================
 
-    override fun onDestroy() {
+// =============================================================
+// LOGIN BACKGROUND
+// =============================================================
 
-        executor.shutdownNow()
+class LoginBackground(
+    context: Context
+) : View(context) {
 
-        super.onDestroy()
+    private val paint =
+        Paint(Paint.ANTI_ALIAS_FLAG)
+
+    override fun onDraw(
+        canvas: Canvas
+    ) {
+
+        super.onDraw(canvas)
+
+        val w =
+            width.toFloat()
+
+        val h =
+            height.toFloat()
+
+        canvas.drawColor(
+            Color.rgb(
+                2,
+                9,
+                18
+            )
+        )
+
+        paint.color =
+            Color.rgb(
+                4,
+                29,
+                52
+            )
+
+        canvas.drawCircle(
+            w * 0.82f,
+            h * 0.20f,
+            w * 0.35f,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                3,
+                20,
+                38
+            )
+
+        canvas.drawCircle(
+            w * 0.18f,
+            h * 0.90f,
+            w * 0.40f,
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        paint.textAlign =
+            Paint.Align.CENTER
+
+        paint.textSize =
+            min(
+                w * 0.055f,
+                58f
+            )
+
+        paint.typeface =
+            Typeface.create(
+                Typeface.DEFAULT,
+                Typeface.BOLD
+            )
+
+        canvas.drawText(
+            "▶ TVBOX",
+            w / 2f,
+            h * 0.29f,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                55,
+                165,
+                255
+            )
+
+        paint.textSize =
+            min(
+                w * 0.022f,
+                22f
+            )
+
+        paint.typeface =
+            Typeface.DEFAULT
+
+        canvas.drawText(
+            "PREMIUM",
+            w / 2f,
+            h * 0.34f,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                190,
+                210,
+                230
+            )
+
+        paint.textSize =
+            min(
+                w * 0.018f,
+                18f
+            )
+
+        canvas.drawText(
+            "Inicia sesión para continuar",
+            w / 2f,
+            h * 0.405f,
+            paint
+        )
+
+        paint.textAlign =
+            Paint.Align.LEFT
+    }
+}
+
+
+// =============================================================
+// HOME
+// =============================================================
+
+class HomeView(
+    context: Context,
+    private val session: XtreamSession
+) : View(context) {
+
+    private val paint =
+        Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // =========================================================
+    // NAVEGACIÓN
+    // =========================================================
+
+    private var selectedSection = 0
+
+    /*
+        0 = Hero
+        1 = TV
+        2 = Películas
+        3 = menú lateral
+    */
+
+    private var focusZone = 0
+
+    private var selectedCard = 0
+
+    private var touchStartX = 0f
+    private var touchStartY = 0f
+
+    private var tvScroll = 0f
+    private var movieScroll = 0f
+
+    // =========================================================
+    // DATOS DEMO
+    // =========================================================
+
+    private val sections =
+        arrayOf(
+            "Inicio",
+            "TV",
+            "Películas",
+            "Buscar",
+            "Favoritos",
+            "Configuración"
+        )
+
+    private val channels =
+        arrayOf(
+            "TNT Sports",
+            "ESPN",
+            "CHV",
+            "TVN",
+            "Mega",
+            "Canal 13",
+            "Discovery",
+            "HBO"
+        )
+
+    private val movies =
+        arrayOf(
+            "Dune",
+            "Deadpool",
+            "John Wick",
+            "Oppenheimer",
+            "Top Gun",
+            "Batman",
+            "Interstellar",
+            "Avatar"
+        )
+
+    // =========================================================
+    // RESPONSIVE
+    // =========================================================
+
+    private val sidebarWidth: Float
+        get() =
+            min(
+                width * 0.19f,
+                310f
+            )
+
+    private val horizontalMargin: Float
+        get() =
+            max(
+                22f,
+                width * 0.025f
+            )
+
+    private val contentLeft: Float
+        get() =
+            sidebarWidth +
+                    horizontalMargin
+
+    private val contentRight: Float
+        get() =
+            width -
+                    horizontalMargin
+
+    private val contentWidth: Float
+        get() =
+            contentRight -
+                    contentLeft
+
+    private val scale: Float
+        get() =
+            min(
+                width / 1920f,
+                height / 1080f
+            ).coerceAtLeast(
+                0.70f
+            )
+
+    // =========================================================
+    // DRAW
+    // =========================================================
+
+    override fun onDraw(
+        canvas: Canvas
+    ) {
+
+        super.onDraw(canvas)
+
+        canvas.drawColor(
+            Color.rgb(
+                2,
+                9,
+                18
+            )
+        )
+
+        drawBackground(canvas)
+        drawSidebar(canvas)
+        drawHeader(canvas)
+        drawHero(canvas)
+        drawLiveSection(canvas)
+        drawMoviesSection(canvas)
+    }
+
+    // =========================================================
+    // BACKGROUND
+    // =========================================================
+
+    private fun drawBackground(
+        canvas: Canvas
+    ) {
+
+        paint.style =
+            Paint.Style.FILL
+
+        paint.color =
+            Color.rgb(
+                2,
+                9,
+                18
+            )
+
+        canvas.drawRect(
+            0f,
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                4,
+                25,
+                45
+            )
+
+        canvas.drawCircle(
+            width * 0.88f,
+            height * 0.10f,
+            width * 0.25f,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                3,
+                20,
+                36
+            )
+
+        canvas.drawCircle(
+            width * 0.78f,
+            height * 0.95f,
+            width * 0.30f,
+            paint
+        )
+    }
+
+    // =========================================================
+    // SIDEBAR
+    // =========================================================
+
+    private fun drawSidebar(
+        canvas: Canvas
+    ) {
+
+        paint.style =
+            Paint.Style.FILL
+
+        paint.color =
+            Color.rgb(
+                4,
+                16,
+                29
+            )
+
+        canvas.drawRect(
+            0f,
+            0f,
+            sidebarWidth,
+            height.toFloat(),
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                16,
+                47,
+                72
+            )
+
+        canvas.drawRect(
+            sidebarWidth - 1f,
+            0f,
+            sidebarWidth,
+            height.toFloat(),
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        paint.textSize =
+            27f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "▶ TVBOX",
+            sidebarWidth * 0.12f,
+            55f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                55,
+                165,
+                255
+            )
+
+        paint.textSize =
+            12f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "PREMIUM",
+            sidebarWidth * 0.31f,
+            77f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                20,
+                60,
+                90
+            )
+
+        canvas.drawRect(
+            sidebarWidth * 0.10f,
+            102f * scale,
+            sidebarWidth * 0.90f,
+            103f * scale,
+            paint
+        )
+
+        val startY =
+            155f * scale
+
+        val spacing =
+            64f * scale
+
+        sections.forEachIndexed {
+                index,
+                title ->
+
+            val y =
+                startY +
+                        index *
+                        spacing
+
+            val focused =
+                focusZone == 3 &&
+                        selectedSection == index
+
+            if (focused) {
+
+                paint.color =
+                    Color.rgb(
+                        18,
+                        112,
+                        218
+                    )
+
+                canvas.drawRoundRect(
+                    RectF(
+                        sidebarWidth * 0.07f,
+                        y - 35f * scale,
+                        sidebarWidth * 0.93f,
+                        y + 17f * scale
+                    ),
+                    13f * scale,
+                    13f * scale,
+                    paint
+                )
+
+                paint.color =
+                    Color.rgb(
+                        80,
+                        190,
+                        255
+                    )
+
+                canvas.drawRoundRect(
+                    RectF(
+                        sidebarWidth * 0.07f,
+                        y - 27f * scale,
+                        sidebarWidth * 0.09f,
+                        y + 9f * scale
+                    ),
+                    3f * scale,
+                    3f * scale,
+                    paint
+                )
+            }
+
+            paint.color =
+                if (focused)
+                    Color.WHITE
+                else
+                    Color.rgb(
+                        190,
+                        205,
+                        220
+                    )
+
+            paint.textSize =
+                if (focused)
+                    19f * scale
+                else
+                    18f * scale
+
+            paint.isFakeBoldText =
+                focused
+
+            canvas.drawText(
+                title,
+                sidebarWidth * 0.20f,
+                y,
+                paint
+            )
+        }
+    }
+
+    // =========================================================
+    // HEADER
+    // =========================================================
+
+    private fun drawHeader(
+        canvas: Canvas
+    ) {
+
+        paint.color =
+            Color.rgb(
+                190,
+                205,
+                220
+            )
+
+        paint.textSize =
+            14f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "TVBOX PREMIUM",
+            contentLeft,
+            42f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                130,
+                150,
+                170
+            )
+
+        paint.textSize =
+            15f * scale
+
+        canvas.drawText(
+            "⌕  Buscar",
+            contentRight - 150f * scale,
+            42f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                170,
+                190,
+                210
+            )
+
+        canvas.drawCircle(
+            contentRight - 18f * scale,
+            36f * scale,
+            13f * scale,
+            paint
+        )
+    }
+
+    // =========================================================
+    // HERO
+    // =========================================================
+
+    private fun drawHero(
+        canvas: Canvas
+    ) {
+
+        val left =
+            contentLeft
+
+        val top =
+            65f * scale
+
+        val right =
+            contentRight
+
+        val heroHeight =
+            min(
+                285f * scale,
+                height * 0.31f
+            )
+
+        val bottom =
+            top + heroHeight
+
+        val heroFocused =
+            focusZone == 0
+
+        // -----------------------------------------------------
+        // FONDO
+        // -----------------------------------------------------
+
+        paint.style =
+            Paint.Style.FILL
+
+        paint.color =
+            Color.rgb(
+                5,
+                18,
+                32
+            )
+
+        canvas.drawRoundRect(
+            RectF(
+                left,
+                top,
+                right,
+                bottom
+            ),
+            22f * scale,
+            22f * scale,
+            paint
+        )
+
+        // -----------------------------------------------------
+        // VISUAL DERECHA
+        // -----------------------------------------------------
+
+        paint.color =
+            Color.rgb(
+                5,
+                38,
+                65
+            )
+
+        val visualPath =
+            Path()
+
+        visualPath.moveTo(
+            left +
+                    (right - left) *
+                    0.48f,
+            top
+        )
+
+        visualPath.lineTo(
+            right,
+            top
+        )
+
+        visualPath.lineTo(
+            right,
+            bottom
+        )
+
+        visualPath.lineTo(
+            left +
+                    (right - left) *
+                    0.38f,
+            bottom
+        )
+
+        visualPath.close()
+
+        canvas.drawPath(
+            visualPath,
+            paint
+        )
+
+        // -----------------------------------------------------
+        // ELEMENTOS CINEMATOGRÁFICOS
+        // -----------------------------------------------------
+
+        paint.color =
+            Color.rgb(
+                7,
+                60,
+                98
+            )
+
+        canvas.drawCircle(
+            right - 230f * scale,
+            top + heroHeight * 0.48f,
+            135f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                10,
+                85,
+                135
+            )
+
+        canvas.drawCircle(
+            right - 230f * scale,
+            top + heroHeight * 0.48f,
+            90f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                18,
+                110,
+                175
+            )
+
+        canvas.drawCircle(
+            right - 230f * scale,
+            top + heroHeight * 0.48f,
+            45f * scale,
+            paint
+        )
+
+        // -----------------------------------------------------
+        // PLAY
+        // -----------------------------------------------------
+
+        paint.color =
+            Color.argb(
+                65,
+                255,
+                255,
+                255
+            )
+
+        canvas.drawCircle(
+            right - 230f * scale,
+            top + heroHeight * 0.48f,
+            78f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        val play =
+            Path()
+
+        val playX =
+            right - 230f * scale
+
+        val playY =
+            top + heroHeight * 0.48f
+
+        play.moveTo(
+            playX - 20f * scale,
+            playY - 31f * scale
+        )
+
+        play.lineTo(
+            playX + 35f * scale,
+            playY
+        )
+
+        play.lineTo(
+            playX - 20f * scale,
+            playY + 31f * scale
+        )
+
+        play.close()
+
+        canvas.drawPath(
+            play,
+            paint
+        )
+
+        // -----------------------------------------------------
+        // DEGRADADO
+        // -----------------------------------------------------
+
+        val gradientWidth =
+            (right - left) * 0.65f
+
+        val gradientSteps =
+            16
+
+        for (
+            i in 0 until gradientSteps
+        ) {
+
+            val progress =
+                i.toFloat() /
+                        gradientSteps.toFloat()
+
+            val alpha =
+                (
+                    175f *
+                            (1f - progress)
+                    )
+                    .toInt()
+                    .coerceIn(
+                        0,
+                        175
+                    )
+
+            paint.color =
+                Color.argb(
+                    alpha,
+                    2,
+                    9,
+                    18
+                )
+
+            val sectionLeft =
+                left +
+                        gradientWidth *
+                        progress
+
+            val sectionRight =
+                left +
+                        gradientWidth *
+                        (
+                            (i + 1).toFloat() /
+                                    gradientSteps.toFloat()
+                            )
+
+            canvas.drawRect(
+                sectionLeft,
+                top,
+                sectionRight,
+                bottom,
+                paint
+            )
+        }
+
+        // -----------------------------------------------------
+        // FOCO
+        // -----------------------------------------------------
+
+        if (heroFocused) {
+
+            paint.style =
+                Paint.Style.STROKE
+
+            paint.strokeWidth =
+                3f * scale
+
+            paint.color =
+                Color.argb(
+                    235,
+                    255,
+                    255,
+                    255
+                )
+
+            canvas.drawRoundRect(
+                RectF(
+                    left - 2f * scale,
+                    top - 2f * scale,
+                    right + 2f * scale,
+                    bottom + 2f * scale
+                ),
+                23f * scale,
+                23f * scale,
+                paint
+            )
+
+            paint.style =
+                Paint.Style.FILL
+        }
+
+        // -----------------------------------------------------
+        // TEXTO
+        // -----------------------------------------------------
+
+        paint.color =
+            Color.rgb(
+                75,
+                180,
+                255
+            )
+
+        paint.textSize =
+            14f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "CONTENIDO DESTACADO",
+            left + 36f * scale,
+            top + 42f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        paint.textSize =
+            40f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "TVBOX PREMIUM",
+            left + 36f * scale,
+            top + 100f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                205,
+                220,
+                235
+            )
+
+        paint.textSize =
+            18f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "Tu entretenimiento en un solo lugar.",
+            left + 36f * scale,
+            top + 140f * scale,
+            paint
+        )
+
+        // -----------------------------------------------------
+        // BOTÓN
+        // -----------------------------------------------------
+
+        val buttonLeft =
+            left + 36f * scale
+
+        val buttonTop =
+            top + 175f * scale
+
+        val buttonRight =
+            buttonLeft +
+                    168f * scale
+
+        val buttonBottom =
+            buttonTop +
+                    52f * scale
+
+        paint.color =
+            if (heroFocused)
+                Color.rgb(
+                    35,
+                    145,
+                    255
+                )
+            else
+                Color.rgb(
+                    15,
+                    115,
+                    225
+                )
+
+        canvas.drawRoundRect(
+            RectF(
+                buttonLeft,
+                buttonTop,
+                buttonRight,
+                buttonBottom
+            ),
+            12f * scale,
+            12f * scale,
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        paint.textSize =
+            16f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "▶  VER AHORA",
+            buttonLeft + 20f * scale,
+            buttonTop + 33f * scale,
+            paint
+        )
+    }
+
+    // =========================================================
+    // TV
+    // =========================================================
+
+    private fun drawLiveSection(
+        canvas: Canvas
+    ) {
+
+        val heroBottom =
+            65f * scale +
+                    min(
+                        285f * scale,
+                        height * 0.31f
+                    )
+
+        val titleY =
+            heroBottom +
+                    43f * scale
+
+        paint.color =
+            Color.WHITE
+
+        paint.textSize =
+            23f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "TV EN VIVO",
+            contentLeft,
+            titleY,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                110,
+                140,
+                165
+            )
+
+        paint.textSize =
+            12f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "Canales disponibles",
+            contentLeft + 135f * scale,
+            titleY,
+            paint
+        )
+
+        val top =
+            titleY +
+                    17f * scale
+
+        val gap =
+            14f * scale
+
+        val cardWidth =
+            (
+                contentWidth -
+                        5f * gap
+                ) / 6f
+
+        val finalWidth =
+            cardWidth.coerceIn(
+                135f * scale,
+                235f * scale
+            )
+
+        val cardHeight =
+            finalWidth *
+                    0.66f
+
+        channels.forEachIndexed {
+                index,
+                channel ->
+
+            val x =
+                contentLeft +
+                        index *
+                        (
+                            finalWidth +
+                                    gap
+                            ) -
+                        tvScroll
+
+            if (
+                x + finalWidth <
+                contentLeft ||
+                x > contentRight
+            ) {
+                return@forEachIndexed
+            }
+
+            val focused =
+                focusZone == 1 &&
+                        selectedCard == index
+
+            paint.color =
+                if (focused)
+                    Color.rgb(
+                        18,
+                        104,
+                        190
+                    )
+                else
+                    Color.rgb(
+                        8,
+                        30,
+                        51
+                    )
+
+            canvas.drawRoundRect(
+                RectF(
+                    x,
+                    top,
+                    x + finalWidth,
+                    top + cardHeight
+                ),
+                15f * scale,
+                15f * scale,
+                paint
+            )
+
+            if (focused) {
+
+                paint.style =
+                    Paint.Style.STROKE
+
+                paint.strokeWidth =
+                    3f * scale
+
+                paint.color =
+                    Color.WHITE
+
+                canvas.drawRoundRect(
+                    RectF(
+                        x - 2f * scale,
+                        top - 2f * scale,
+                        x + finalWidth +
+                                2f * scale,
+                        top + cardHeight +
+                                2f * scale
+                    ),
+                    16f * scale,
+                    16f * scale,
+                    paint
+                )
+
+                paint.style =
+                    Paint.Style.FILL
+            }
+
+            paint.color =
+                Color.rgb(
+                    14,
+                    50,
+                    78
+                )
+
+            canvas.drawCircle(
+                x + finalWidth / 2f,
+                top + cardHeight * 0.37f,
+                min(
+                    finalWidth,
+                    cardHeight
+                ) * 0.22f,
+                paint
+            )
+
+            paint.color =
+                Color.WHITE
+
+            val miniPlay =
+                Path()
+
+            val cx =
+                x +
+                        finalWidth / 2f
+
+            val cy =
+                top +
+                        cardHeight * 0.37f
+
+            miniPlay.moveTo(
+                cx - 8f * scale,
+                cy - 12f * scale
+            )
+
+            miniPlay.lineTo(
+                cx + 12f * scale,
+                cy
+            )
+
+            miniPlay.lineTo(
+                cx - 8f * scale,
+                cy + 12f * scale
+            )
+
+            miniPlay.close()
+
+            canvas.drawPath(
+                miniPlay,
+                paint
+            )
+
+            paint.color =
+                Color.WHITE
+
+            paint.textSize =
+                14f * scale
+
+            paint.isFakeBoldText =
+                true
+
+            val textWidth =
+                paint.measureText(
+                    channel
+                )
+
+            canvas.drawText(
+                channel,
+                x +
+                        (
+                            finalWidth -
+                                    textWidth
+                            ) / 2f,
+                top +
+                        cardHeight *
+                        0.73f,
+                paint
+            )
+
+            paint.color =
+                Color.rgb(
+                    125,
+                    195,
+                    255
+                )
+
+            paint.textSize =
+                10f * scale
+
+            paint.isFakeBoldText =
+                false
+
+            val live =
+                "● EN VIVO"
+
+            val liveWidth =
+                paint.measureText(
+                    live
+                )
+
+            canvas.drawText(
+                live,
+                x +
+                        (
+                            finalWidth -
+                                    liveWidth
+                            ) / 2f,
+                top +
+                        cardHeight *
+                        0.89f,
+                paint
+            )
+        }
+    }
+
+    // =========================================================
+    // PELÍCULAS
+    // =========================================================
+
+    private fun drawMoviesSection(
+        canvas: Canvas
+    ) {
+
+        val heroBottom =
+            65f * scale +
+                    min(
+                        285f * scale,
+                        height * 0.31f
+                    )
+
+        val liveTitle =
+            heroBottom +
+                    43f * scale
+
+        val liveTop =
+            liveTitle +
+                    17f * scale
+
+        val liveWidth =
+            (
+                (
+                    contentWidth -
+                            5f *
+                            14f *
+                            scale
+                    ) / 6f
+                ).coerceIn(
+                    135f * scale,
+                    235f * scale
+                )
+
+        val liveHeight =
+            liveWidth *
+                    0.66f
+
+        val titleY =
+            liveTop +
+                    liveHeight +
+                    48f * scale
+
+        paint.color =
+            Color.WHITE
+
+        paint.textSize =
+            23f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "PELÍCULAS POPULARES",
+            contentLeft,
+            titleY,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                110,
+                140,
+                165
+            )
+
+        paint.textSize =
+            12f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "Recomendadas para ti",
+            contentLeft + 245f * scale,
+            titleY,
+            paint
+        )
+
+        val top =
+            titleY +
+                    17f * scale
+
+        val gap =
+            16f * scale
+
+        val cardWidth =
+            (
+                contentWidth -
+                        5f * gap
+                ) / 6f
+
+        val finalWidth =
+            cardWidth.coerceIn(
+                120f * scale,
+                195f * scale
+            )
+
+        val cardHeight =
+            finalWidth *
+                    1.34f
+
+        movies.forEachIndexed {
+                index,
+                movie ->
+
+            val x =
+                contentLeft +
+                        index *
+                        (
+                            finalWidth +
+                                    gap
+                            ) -
+                        movieScroll
+
+            if (
+                x + finalWidth <
+                contentLeft ||
+                x > contentRight
+            ) {
+                return@forEachIndexed
+            }
+
+            val focused =
+                focusZone == 2 &&
+                        selectedCard == index
+
+            paint.color =
+                if (focused)
+                    Color.rgb(
+                        20,
+                        80,
+                        135
+                    )
+                else
+                    Color.rgb(
+                        10 + index * 4,
+                        26 + index * 4,
+                        45 + index * 5
+                    )
+
+            canvas.drawRoundRect(
+                RectF(
+                    x,
+                    top,
+                    x + finalWidth,
+                    top + cardHeight
+                ),
+                12f * scale,
+                12f * scale,
+                paint
+            )
+
+            paint.color =
+                Color.rgb(
+                    18 + index * 4,
+                    43 + index * 3,
+                    68 + index * 4
+                )
+
+            canvas.drawRoundRect(
+                RectF(
+                    x + 7f * scale,
+                    top + 7f * scale,
+                    x + finalWidth -
+                            7f * scale,
+                    top +
+                            cardHeight *
+                            0.77f
+                ),
+                9f * scale,
+                9f * scale,
+                paint
+            )
+
+            if (focused) {
+
+                paint.style =
+                    Paint.Style.STROKE
+
+                paint.strokeWidth =
+                    3f * scale
+
+                paint.color =
+                    Color.WHITE
+
+                canvas.drawRoundRect(
+                    RectF(
+                        x - 2f * scale,
+                        top - 2f * scale,
+                        x + finalWidth +
+                                2f * scale,
+                        top + cardHeight +
+                                2f * scale
+                    ),
+                    13f * scale,
+                    13f * scale,
+                    paint
+                )
+
+                paint.style =
+                    Paint.Style.FILL
+            }
+
+            paint.color =
+                Color.WHITE
+
+            paint.textSize =
+                13f * scale
+
+            paint.isFakeBoldText =
+                true
+
+            canvas.drawText(
+                movie,
+                x + 11f * scale,
+                top +
+                        cardHeight *
+                        0.87f,
+                paint
+            )
+        }
+    }
+
+    // =========================================================
+    // TOUCH
+    // =========================================================
+
+    override fun onTouchEvent(
+        event: MotionEvent
+    ): Boolean {
+
+        when (event.action) {
+
+            MotionEvent.ACTION_DOWN -> {
+
+                touchStartX =
+                    event.x
+
+                touchStartY =
+                    event.y
+
+                return true
+            }
+
+            MotionEvent.ACTION_UP -> {
+
+                val x =
+                    event.x
+
+                val y =
+                    event.y
+
+                val dx =
+                    x - touchStartX
+
+                val dy =
+                    y - touchStartY
+
+                if (
+                    abs(dx) > 70f &&
+                    abs(dx) > abs(dy)
+                ) {
+
+                    if (
+                        focusZone == 1
+                    ) {
+
+                        tvScroll +=
+                            if (dx < 0)
+                                220f * scale
+                            else
+                                -220f * scale
+
+                        tvScroll =
+                            tvScroll.coerceIn(
+                                0f,
+                                900f * scale
+                            )
+
+                    } else if (
+                        focusZone == 2
+                    ) {
+
+                        movieScroll +=
+                            if (dx < 0)
+                                220f * scale
+                            else
+                                -220f * scale
+
+                        movieScroll =
+                            movieScroll.coerceIn(
+                                0f,
+                                900f * scale
+                            )
+                    }
+
+                    invalidate()
+
+                    return true
+                }
+
+                handleTouch(
+                    x,
+                    y
+                )
+
+                performClick()
+
+                return true
+            }
+        }
+
+        return true
+    }
+
+    override fun performClick():
+            Boolean {
+
+        super.performClick()
+
+        return true
+    }
+
+    // =========================================================
+    // TOUCH HIT TEST
+    // =========================================================
+
+    private fun handleTouch(
+        x: Float,
+        y: Float
+    ) {
+
+        // -----------------------------------------------------
+        // SIDEBAR
+        // -----------------------------------------------------
+
+        if (
+            x <= sidebarWidth
+        ) {
+
+            val startY =
+                120f * scale
+
+            val spacing =
+                64f * scale
+
+            sections.forEachIndexed {
+                    index,
+                    _ ->
+
+                val top =
+                    startY +
+                            index *
+                            spacing
+
+                val bottom =
+                    top +
+                            60f * scale
+
+                if (
+                    y >= top &&
+                    y <= bottom
+                ) {
+
+                    selectedSection =
+                        index
+
+                    selectedCard =
+                        0
+
+                    focusZone =
+                        3
+
+                    tvScroll =
+                        0f
+
+                    movieScroll =
+                        0f
+
+                    invalidate()
+
+                    return
+                }
+            }
+        }
+
+        // -----------------------------------------------------
+        // HERO COMPLETO
+        // -----------------------------------------------------
+
+        val heroTop =
+            65f * scale
+
+        val heroHeight =
+            min(
+                285f * scale,
+                height * 0.31f
+            )
+
+        val heroBottom =
+            heroTop +
+                    heroHeight
+
+        if (
+            x >= contentLeft &&
+            x <= contentRight &&
+            y >= heroTop &&
+            y <= heroBottom
+        ) {
+
+            selectedSection =
+                0
+
+            selectedCard =
+                0
+
+            focusZone =
+                0
+
+            invalidate()
+
+            return
+        }
+
+        // -----------------------------------------------------
+        // VER AHORA
+        // -----------------------------------------------------
+
+        val buttonTop =
+            heroTop +
+                    165f * scale
+
+        if (
+            x >= contentLeft &&
+            x <= contentLeft +
+                    240f * scale &&
+            y >= buttonTop &&
+            y <= buttonTop +
+                    70f * scale
+        ) {
+
+            selectedSection =
+                1
+
+            selectedCard =
+                0
+
+            focusZone =
+                1
+
+            invalidate()
+
+            return
+        }
+
+        // -----------------------------------------------------
+        // TV
+        // -----------------------------------------------------
+
+        val liveTitle =
+            heroTop +
+                    heroHeight +
+                    43f * scale
+
+        val liveTop =
+            liveTitle +
+                    17f * scale
+
+        val gap =
+            14f * scale
+
+        val liveWidth =
+            (
+                (
+                    contentWidth -
+                            5f * gap
+                    ) / 6f
+                ).coerceIn(
+                    135f * scale,
+                    235f * scale
+                )
+
+        val liveHeight =
+            liveWidth *
+                    0.66f
+
+        if (
+            y >= liveTop &&
+            y <= liveTop +
+                    liveHeight
+        ) {
+
+            channels.forEachIndexed {
+                    index,
+                    _ ->
+
+                val cardLeft =
+                    contentLeft +
+                            index *
+                            (
+                                liveWidth +
+                                        gap
+                                ) -
+                            tvScroll
+
+                if (
+                    x >= cardLeft &&
+                    x <= cardLeft +
+                            liveWidth
+                ) {
+
+                    selectedSection =
+                        1
+
+                    selectedCard =
+                        index
+
+                    focusZone =
+                        1
+
+                    invalidate()
+
+                    return
+                }
+            }
+        }
+
+        // -----------------------------------------------------
+        // PELÍCULAS
+        // -----------------------------------------------------
+
+        val movieTitle =
+            liveTop +
+                    liveHeight +
+                    48f * scale
+
+        val movieTop =
+            movieTitle +
+                    17f * scale
+
+        val movieGap =
+            16f * scale
+
+        val movieWidth =
+            (
+                (
+                    contentWidth -
+                            5f *
+                            movieGap
+                    ) / 6f
+                ).coerceIn(
+                    120f * scale,
+                    195f * scale
+                )
+
+        val movieHeight =
+            movieWidth *
+                    1.34f
+
+        if (
+            y >= movieTop &&
+            y <= movieTop +
+                    movieHeight
+        ) {
+
+            movies.forEachIndexed {
+                    index,
+                    _ ->
+
+                val cardLeft =
+                    contentLeft +
+                            index *
+                            (
+                                movieWidth +
+                                        movieGap
+                                ) -
+                            movieScroll
+
+                if (
+                    x >= cardLeft &&
+                    x <= cardLeft +
+                            movieWidth
+                ) {
+
+                    selectedSection =
+                        2
+
+                    selectedCard =
+                        index
+
+                    focusZone =
+                        2
+
+                    invalidate()
+
+                    return
+                }
+            }
+        }
+    }
+
+    // =========================================================
+    // D-PAD
+    // =========================================================
+
+    override fun onKeyDown(
+        keyCode: Int,
+        event: KeyEvent
+    ): Boolean {
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+
+                when (focusZone) {
+
+                    0 -> {
+
+                        focusZone =
+                            1
+
+                        selectedCard =
+                            0
+                    }
+
+                    1 -> {
+
+                        if (
+                            selectedCard <
+                            channels.lastIndex
+                        ) {
+
+                            selectedCard++
+
+                            keepTvCardVisible()
+                        }
+                    }
+
+                    2 -> {
+
+                        if (
+                            selectedCard <
+                            movies.lastIndex
+                        ) {
+
+                            selectedCard++
+
+                            keepMovieCardVisible()
+                        }
+                    }
+
+                    3 -> {
+
+                        focusZone =
+                            0
+                    }
+                }
+
+                invalidate()
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+
+                when (focusZone) {
+
+                    1 -> {
+
+                        if (
+                            selectedCard > 0
+                        ) {
+
+                            selectedCard--
+
+                            keepTvCardVisible()
+
+                        } else {
+
+                            focusZone =
+                                3
+                        }
+                    }
+
+                    2 -> {
+
+                        if (
+                            selectedCard > 0
+                        ) {
+
+                            selectedCard--
+
+                            keepMovieCardVisible()
+
+                        } else {
+
+                            focusZone =
+                                3
+                        }
+                    }
+
+                    else -> {
+
+                        focusZone =
+                            3
+                    }
+                }
+
+                invalidate()
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+                when (focusZone) {
+
+                    0 -> {
+
+                        focusZone =
+                            1
+
+                        selectedCard =
+                            0
+                    }
+
+                    1 -> {
+
+                        focusZone =
+                            2
+
+                        selectedCard =
+                            0
+                    }
+
+                    2 -> {
+
+                        focusZone =
+                            3
+
+                        selectedSection =
+                            0
+                    }
+
+                    3 -> {
+
+                        selectedSection++
+
+                        if (
+                            selectedSection >
+                            sections.lastIndex
+                        ) {
+
+                            selectedSection =
+                                0
+                        }
+                    }
+                }
+
+                invalidate()
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_UP -> {
+
+                when (focusZone) {
+
+                    0 -> {
+
+                        focusZone =
+                            3
+                    }
+
+                    1 -> {
+
+                        focusZone =
+                            0
+                    }
+
+                    2 -> {
+
+                        focusZone =
+                            1
+
+                        selectedCard =
+                            0
+                    }
+
+                    3 -> {
+
+                        selectedSection--
+
+                        if (
+                            selectedSection < 0
+                        ) {
+
+                            selectedSection =
+                                sections.lastIndex
+                        }
+                    }
+                }
+
+                invalidate()
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+
+                handleEnter()
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_BACK -> {
+
+                if (
+                    focusZone != 3
+                ) {
+
+                    focusZone =
+                        3
+
+                    invalidate()
+
+                    return true
+                }
+
+                selectedSection =
+                    0
+
+                selectedCard =
+                    0
+
+                focusZone =
+                    0
+
+                invalidate()
+
+                return true
+            }
+        }
+
+        return super.onKeyDown(
+            keyCode,
+            event
+        )
+    }
+
+    // =========================================================
+    // VISIBILIDAD TV
+    // =========================================================
+
+    private fun keepTvCardVisible() {
+
+        val gap =
+            14f * scale
+
+        val cardWidth =
+            (
+                (
+                    contentWidth -
+                            5f * gap
+                    ) / 6f
+                ).coerceIn(
+                    135f * scale,
+                    235f * scale
+                )
+
+        val position =
+            selectedCard *
+                    (
+                        cardWidth +
+                                gap
+                        )
+
+        val visibleRight =
+            contentWidth -
+                    cardWidth
+
+        if (
+            position -
+                    tvScroll >
+            visibleRight
+        ) {
+
+            tvScroll =
+                position -
+                        visibleRight
+        }
+
+        if (
+            position -
+                    tvScroll <
+            0f
+        ) {
+
+            tvScroll =
+                position
+        }
+
+        tvScroll =
+            tvScroll.coerceAtLeast(
+                0f
+            )
+    }
+
+    // =========================================================
+    // VISIBILIDAD PELÍCULAS
+    // =========================================================
+
+    private fun keepMovieCardVisible() {
+
+        val gap =
+            16f * scale
+
+        val cardWidth =
+            (
+                (
+                    contentWidth -
+                            5f * gap
+                    ) / 6f
+                ).coerceIn(
+                    120f * scale,
+                    195f * scale
+                )
+
+        val position =
+            selectedCard *
+                    (
+                        cardWidth +
+                                gap
+                        )
+
+        val visibleRight =
+            contentWidth -
+                    cardWidth
+
+        if (
+            position -
+                    movieScroll >
+            visibleRight
+        ) {
+
+            movieScroll =
+                position -
+                        visibleRight
+        }
+
+        if (
+            position -
+                    movieScroll <
+            0f
+        ) {
+
+            movieScroll =
+                position
+        }
+
+        movieScroll =
+            movieScroll.coerceAtLeast(
+                0f
+            )
+    }
+
+    // =========================================================
+    // ENTER
+    // =========================================================
+
+    private fun handleEnter() {
+
+        when (focusZone) {
+
+            0 -> {
+
+                focusZone =
+                    1
+
+                selectedCard =
+                    0
+            }
+
+            1 -> {
+
+                // Próximo paso:
+                // abrir Live TV real
+            }
+
+            2 -> {
+
+                // Próximo paso:
+                // abrir VOD real
+            }
+
+            3 -> {
+
+                when (selectedSection) {
+
+                    0 -> {
+
+                        focusZone =
+                            0
+                    }
+
+                    1 -> {
+
+                        focusZone =
+                            1
+
+                        selectedCard =
+                            0
+                    }
+
+                    2 -> {
+
+                        focusZone =
+                            2
+
+                        selectedCard =
+                            0
+                    }
+
+                    3 -> {
+                        // Buscar
+                    }
+
+                    4 -> {
+                        // Favoritos
+                    }
+
+                    5 -> {
+                        // Configuración
+                    }
+                }
+            }
+        }
+
+        invalidate()
     }
 }
