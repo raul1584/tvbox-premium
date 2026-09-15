@@ -2,50 +2,518 @@ package com.tvboxpremium
 
 import android.app.Activity
 import android.os.Bundle
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Typeface
-import android.text.InputType
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
+import android.graphics.*
+import android.graphics.drawable.GradientDrawable
+import android.view.*
 import android.content.Context
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.graphics.drawable.GradientDrawable
+import android.view.inputmethod.InputMethodManager
+import android.text.InputType
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.concurrent.thread
+
+// =============================================================
+// MODELOS
+// =============================================================
+
+data class XtreamSession(
+    val serverUrl: String,
+    val username: String,
+    val password: String
+)
+
+data class LiveCategory(
+    val id: String,
+    val name: String
+)
+
+data class VodCategory(
+    val id: String,
+    val name: String
+)
+
+data class LiveChannel(
+    val id: String,
+    val name: String,
+    val icon: String?,
+    val categoryId: String?
+)
+
+data class Movie(
+    val id: String,
+    val name: String,
+    val icon: String?,
+    val categoryId: String?
+)
+
+// =============================================================
+// API XTREAM
+// =============================================================
+
+object XtreamApi {
+
+    fun request(
+        session: XtreamSession,
+        action: String
+    ): String {
+
+        val user =
+            URLEncoder.encode(
+                session.username,
+                "UTF-8"
+            )
+
+        val password =
+            URLEncoder.encode(
+                session.password,
+                "UTF-8"
+            )
+
+        val actionEncoded =
+            URLEncoder.encode(
+                action,
+                "UTF-8"
+            )
+
+        val urlString =
+            "${session.serverUrl}/player_api.php" +
+                    "?username=$user" +
+                    "&password=$password" +
+                    "&action=$actionEncoded"
+
+        var connection: HttpURLConnection? = null
+
+        try {
+
+            val url =
+                URL(urlString)
+
+            connection =
+                url.openConnection()
+                        as HttpURLConnection
+
+            connection.requestMethod =
+                "GET"
+
+            connection.connectTimeout =
+                15000
+
+            connection.readTimeout =
+                20000
+
+            connection.instanceFollowRedirects =
+                true
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
+            )
+
+            val code =
+                connection.responseCode
+
+            if (code !in 200..299) {
+
+                throw Exception(
+                    "HTTP $code"
+                )
+            }
+
+            return connection
+                .inputStream
+                .bufferedReader()
+                .use {
+                    it.readText()
+                }
+
+        } finally {
+
+            connection?.disconnect()
+        }
+    }
+
+    fun getLiveCategories(
+        session: XtreamSession
+    ): List<LiveCategory> {
+
+        val response =
+            request(
+                session,
+                "get_live_categories"
+            )
+
+        val array =
+            JSONArray(response)
+
+        val result =
+            mutableListOf<LiveCategory>()
+
+        for (i in 0 until array.length()) {
+
+            val item =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val id =
+                item.optString(
+                    "category_id"
+                )
+
+            val name =
+                item.optString(
+                    "category_name",
+                    "Sin categoría"
+                )
+
+            if (id.isNotEmpty()) {
+
+                result.add(
+                    LiveCategory(
+                        id,
+                        name
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    fun getLiveStreams(
+        session: XtreamSession
+    ): List<LiveChannel> {
+
+        val response =
+            request(
+                session,
+                "get_live_streams"
+            )
+
+        val array =
+            JSONArray(response)
+
+        val result =
+            mutableListOf<LiveChannel>()
+
+        for (i in 0 until array.length()) {
+
+            val item =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val id =
+                item.optString(
+                    "stream_id"
+                )
+
+            val name =
+                item.optString(
+                    "name",
+                    "Canal"
+                )
+
+            val icon =
+                item.optString(
+                    "stream_icon",
+                    ""
+                ).ifBlank {
+                    null
+                }
+
+            val category =
+                item.optString(
+                    "category_id",
+                    ""
+                ).ifBlank {
+                    null
+                }
+
+            if (id.isNotEmpty()) {
+
+                result.add(
+                    LiveChannel(
+                        id,
+                        name,
+                        icon,
+                        category
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    fun getVodCategories(
+        session: XtreamSession
+    ): List<VodCategory> {
+
+        val response =
+            request(
+                session,
+                "get_vod_categories"
+            )
+
+        val array =
+            JSONArray(response)
+
+        val result =
+            mutableListOf<VodCategory>()
+
+        for (i in 0 until array.length()) {
+
+            val item =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val id =
+                item.optString(
+                    "category_id"
+                )
+
+            val name =
+                item.optString(
+                    "category_name",
+                    "Sin categoría"
+                )
+
+            if (id.isNotEmpty()) {
+
+                result.add(
+                    VodCategory(
+                        id,
+                        name
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    fun getVodStreams(
+        session: XtreamSession
+    ): List<Movie> {
+
+        val response =
+            request(
+                session,
+                "get_vod_streams"
+            )
+
+        val array =
+            JSONArray(response)
+
+        val result =
+            mutableListOf<Movie>()
+
+        for (i in 0 until array.length()) {
+
+            val item =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val id =
+                item.optString(
+                    "stream_id"
+                )
+
+            val name =
+                item.optString(
+                    "name",
+                    "Película"
+                )
+
+            val icon =
+                item.optString(
+                    "stream_icon",
+                    ""
+                ).ifBlank {
+                    null
+                }
+
+            val category =
+                item.optString(
+                    "category_id",
+                    ""
+                ).ifBlank {
+                    null
+                }
+
+            if (id.isNotEmpty()) {
+
+                result.add(
+                    Movie(
+                        id,
+                        name,
+                        icon,
+                        category
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+}
+
+// =============================================================
+// IMAGE CACHE
+// =============================================================
+
+object ImageCache {
+
+    private val cache =
+        object :
+            LinkedHashMap<String, Bitmap>(
+                40,
+                0.75f,
+                true
+            ) {
+
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, Bitmap>?
+            ): Boolean {
+
+                return size > 40
+            }
+        }
+
+    @Synchronized
+    fun get(
+        url: String
+    ): Bitmap? {
+
+        return cache[url]
+    }
+
+    @Synchronized
+    fun put(
+        url: String,
+        bitmap: Bitmap
+    ) {
+
+        cache[url] = bitmap
+    }
+
+    fun load(
+        url: String,
+        callback: (Bitmap?) -> Unit
+    ) {
+
+        val cached =
+            get(url)
+
+        if (cached != null) {
+
+            callback(cached)
+
+            return
+        }
+
+        thread {
+
+            var bitmap: Bitmap? = null
+
+            try {
+
+                val connection =
+                    URL(url)
+                        .openConnection()
+                            as HttpURLConnection
+
+                connection.connectTimeout =
+                    10000
+
+                connection.readTimeout =
+                    15000
+
+                connection.instanceFollowRedirects =
+                    true
+
+                connection.connect()
+
+                val input =
+                    connection.inputStream
+
+                val bytes =
+                    input.readBytes()
+
+                input.close()
+
+                bitmap =
+                    BitmapFactory.decodeByteArray(
+                        bytes,
+                        0,
+                        bytes.size
+                    )
+
+                if (bitmap != null) {
+
+                    put(
+                        url,
+                        bitmap
+                    )
+                }
+
+                connection.disconnect()
+
+            } catch (_: Exception) {
+            }
+
+            callback(bitmap)
+        }
+    }
+}
+
+// =============================================================
+// MAIN ACTIVITY
+// =============================================================
 
 class MainActivity : Activity() {
 
     companion object {
+
         private const val SERVER_URL =
             "http://38.242.252.80:80"
     }
 
     private lateinit var root: FrameLayout
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
+
+        super.onCreate(
+            savedInstanceState
+        )
 
         window.statusBarColor =
-            Color.rgb(2, 8, 16)
+            Color.rgb(
+                2,
+                8,
+                16
+            )
 
         window.navigationBarColor =
-            Color.rgb(2, 8, 16)
+            Color.rgb(
+                2,
+                8,
+                16
+            )
 
-        root = FrameLayout(this)
+        root =
+            FrameLayout(this)
 
         setContentView(root)
 
@@ -62,9 +530,11 @@ class MainActivity : Activity() {
 
         root.addView(
             LoginView(
-                context = this,
-                serverUrl = SERVER_URL
-            ) { username, password ->
+                this,
+                SERVER_URL
+            ) {
+                    username,
+                    password ->
 
                 authenticate(
                     username,
@@ -75,7 +545,7 @@ class MainActivity : Activity() {
     }
 
     // =========================================================
-    // AUTENTICACIÓN XTREAM
+    // AUTENTICACIÓN
     // =========================================================
 
     private fun authenticate(
@@ -83,20 +553,20 @@ class MainActivity : Activity() {
         password: String
     ) {
 
-        Thread {
+        thread {
 
             var connection:
                     HttpURLConnection? = null
 
             try {
 
-                val encodedUser =
+                val user =
                     URLEncoder.encode(
                         username,
                         "UTF-8"
                     )
 
-                val encodedPassword =
+                val pass =
                     URLEncoder.encode(
                         password,
                         "UTF-8"
@@ -104,14 +574,12 @@ class MainActivity : Activity() {
 
                 val apiUrl =
                     "$SERVER_URL/player_api.php" +
-                            "?username=$encodedUser" +
-                            "&password=$encodedPassword"
-
-                val url =
-                    URL(apiUrl)
+                            "?username=$user" +
+                            "&password=$pass"
 
                 connection =
-                    url.openConnection()
+                    URL(apiUrl)
+                        .openConnection()
                             as HttpURLConnection
 
                 connection.requestMethod =
@@ -130,22 +598,22 @@ class MainActivity : Activity() {
                     connection.responseCode
 
                 if (
-                    responseCode !in
-                    200..299
+                    responseCode !in 200..299
                 ) {
 
                     runOnUiThread {
 
                         showLoginError(
-                            "No se pudo conectar al servidor."
+                            "No se pudo conectar al servidor. HTTP $responseCode"
                         )
                     }
 
-                    return@Thread
+                    return@thread
                 }
 
                 val response =
-                    connection.inputStream
+                    connection
+                        .inputStream
                         .bufferedReader()
                         .use {
                             it.readText()
@@ -168,7 +636,7 @@ class MainActivity : Activity() {
                         )
                     }
 
-                    return@Thread
+                    return@thread
                 }
 
                 val auth =
@@ -181,15 +649,15 @@ class MainActivity : Activity() {
                     auth == "1" ||
                     auth.equals(
                         "true",
-                        ignoreCase = true
+                        true
                     )
                 ) {
 
-                    val server =
+                    val session =
                         XtreamSession(
-                            serverUrl = SERVER_URL,
-                            username = username,
-                            password = password
+                            SERVER_URL,
+                            username,
+                            password
                         )
 
                     runOnUiThread {
@@ -197,7 +665,7 @@ class MainActivity : Activity() {
                         hideKeyboard()
 
                         showHome(
-                            server
+                            session
                         )
                     }
 
@@ -211,20 +679,14 @@ class MainActivity : Activity() {
 
                     runOnUiThread {
 
-                        if (
-                            status.isNotEmpty()
-                        ) {
-
-                            showLoginError(
+                        showLoginError(
+                            if (
+                                status.isNotEmpty()
+                            )
                                 "Acceso rechazado: $status"
-                            )
-
-                        } else {
-
-                            showLoginError(
+                            else
                                 "Usuario o contraseña incorrectos."
-                            )
-                        }
+                        )
                     }
                 }
 
@@ -233,7 +695,10 @@ class MainActivity : Activity() {
                 runOnUiThread {
 
                     showLoginError(
-                        "Error de conexión: ${e.message ?: "servidor no disponible"}"
+                        "Error de conexión: ${
+                            e.message
+                                ?: "servidor no disponible"
+                        }"
                     )
                 }
 
@@ -241,13 +706,8 @@ class MainActivity : Activity() {
 
                 connection?.disconnect()
             }
-
-        }.start()
+        }
     }
-
-    // =========================================================
-    // ERROR LOGIN
-    // =========================================================
 
     private fun showLoginError(
         message: String
@@ -278,8 +738,8 @@ class MainActivity : Activity() {
 
         root.addView(
             HomeView(
-                context = this,
-                session = session
+                this,
+                session
             )
         )
     }
@@ -289,7 +749,8 @@ class MainActivity : Activity() {
         val imm =
             getSystemService(
                 Context.INPUT_METHOD_SERVICE
-            ) as InputMethodManager
+            )
+                    as InputMethodManager
 
         imm.hideSoftInputFromWindow(
             root.windowToken,
@@ -301,7 +762,8 @@ class MainActivity : Activity() {
 
         if (
             root.childCount > 0 &&
-            root.getChildAt(0) is HomeView
+            root.getChildAt(0)
+                is HomeView
         ) {
 
             showLogin()
@@ -312,18 +774,6 @@ class MainActivity : Activity() {
         }
     }
 }
-
-
-// =============================================================
-// SESIÓN XTREAM
-// =============================================================
-
-data class XtreamSession(
-    val serverUrl: String,
-    val username: String,
-    val password: String
-)
-
 
 // =============================================================
 // LOGIN VIEW
@@ -358,8 +808,8 @@ class LoginView(
         addView(
             background,
             LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT
+                MATCH_PARENT,
+                MATCH_PARENT
             )
         )
 
@@ -367,10 +817,6 @@ class LoginView(
     }
 
     private fun createLogin() {
-
-        // =====================================================
-        // SERVIDOR
-        // =====================================================
 
         val serverText =
             TextView(context)
@@ -408,10 +854,6 @@ class LoginView(
             serverText,
             serverParams
         )
-
-        // =====================================================
-        // USUARIO
-        // =====================================================
 
         username.setSingleLine(true)
 
@@ -470,10 +912,6 @@ class LoginView(
             username,
             userParams
         )
-
-        // =====================================================
-        // CONTRASEÑA
-        // =====================================================
 
         password.setSingleLine(true)
 
@@ -536,10 +974,6 @@ class LoginView(
             password,
             passParams
         )
-
-        // =====================================================
-        // BOTÓN
-        // =====================================================
 
         loginButton.text =
             "INICIAR SESIÓN"
@@ -625,17 +1059,14 @@ class LoginView(
             loginButton.isEnabled =
                 false
 
-            errorText.text = ""
+            errorText.text =
+                ""
 
             onLogin(
                 user,
                 pass
             )
         }
-
-        // =====================================================
-        // ERROR
-        // =====================================================
 
         errorText.gravity =
             Gravity.CENTER
@@ -791,7 +1222,6 @@ class LoginView(
     }
 }
 
-
 // =============================================================
 // LOGIN BACKGROUND
 // =============================================================
@@ -806,8 +1236,6 @@ class LoginBackground(
     override fun onDraw(
         canvas: Canvas
     ) {
-
-        super.onDraw(canvas)
 
         val w =
             width.toFloat()
@@ -924,9 +1352,8 @@ class LoginBackground(
     }
 }
 
-
 // =============================================================
-// HOME
+// HOME VIEW
 // =============================================================
 
 class HomeView(
@@ -938,10 +1365,36 @@ class HomeView(
         Paint(Paint.ANTI_ALIAS_FLAG)
 
     // =========================================================
+    // DATOS REALES
+    // =========================================================
+
+    private var liveCategories =
+        emptyList<LiveCategory>()
+
+    private var vodCategories =
+        emptyList<VodCategory>()
+
+    private var channels =
+        emptyList<LiveChannel>()
+
+    private var movies =
+        emptyList<Movie>()
+
+    private var loading =
+        true
+
+    private var loadingError:
+            String? = null
+
+    private var loadedImages =
+        mutableMapOf<String, Bitmap>()
+
+    // =========================================================
     // NAVEGACIÓN
     // =========================================================
 
-    private var selectedSection = 0
+    private var selectedSection =
+        0
 
     /*
         0 = Hero
@@ -950,53 +1403,23 @@ class HomeView(
         3 = menú lateral
     */
 
-    private var focusZone = 0
+    private var focusZone =
+        0
 
-    private var selectedCard = 0
+    private var selectedCard =
+        0
 
-    private var touchStartX = 0f
-    private var touchStartY = 0f
+    private var touchStartX =
+        0f
 
-    private var tvScroll = 0f
-    private var movieScroll = 0f
+    private var touchStartY =
+        0f
 
-    // =========================================================
-    // DATOS DEMO
-    // =========================================================
+    private var tvScroll =
+        0f
 
-    private val sections =
-        arrayOf(
-            "Inicio",
-            "TV",
-            "Películas",
-            "Buscar",
-            "Favoritos",
-            "Configuración"
-        )
-
-    private val channels =
-        arrayOf(
-            "TNT Sports",
-            "ESPN",
-            "CHV",
-            "TVN",
-            "Mega",
-            "Canal 13",
-            "Discovery",
-            "HBO"
-        )
-
-    private val movies =
-        arrayOf(
-            "Dune",
-            "Deadpool",
-            "John Wick",
-            "Oppenheimer",
-            "Top Gun",
-            "Batman",
-            "Interstellar",
-            "Avatar"
-        )
+    private var movieScroll =
+        0f
 
     // =========================================================
     // RESPONSIVE
@@ -1040,6 +1463,187 @@ class HomeView(
                 0.70f
             )
 
+    init {
+
+        isFocusable =
+            true
+
+        isFocusableInTouchMode =
+            true
+
+        requestFocus()
+
+        loadXtreamData()
+    }
+
+    // =========================================================
+    // CARGA XTREAM
+    // =========================================================
+
+    private fun loadXtreamData() {
+
+        loading = true
+
+        loadingError = null
+
+        invalidate()
+
+        thread {
+
+            try {
+
+                val liveCats =
+                    try {
+                        XtreamApi
+                            .getLiveCategories(
+                                session
+                            )
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+
+                val liveStreams =
+                    XtreamApi
+                        .getLiveStreams(
+                            session
+                        )
+
+                val vodCats =
+                    try {
+                        XtreamApi
+                            .getVodCategories(
+                                session
+                            )
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+
+                val vodStreams =
+                    XtreamApi
+                        .getVodStreams(
+                            session
+                        )
+
+                runOnUiThread {
+
+                    liveCategories =
+                        liveCats
+
+                    vodCategories =
+                        vodCats
+
+                    channels =
+                        liveStreams
+
+                    movies =
+                        vodStreams
+
+                    loading =
+                        false
+
+                    loadingError =
+                        if (
+                            channels.isEmpty() &&
+                            movies.isEmpty()
+                        )
+                            "El servidor no devolvió canales ni películas."
+                        else
+                            null
+
+                    loadVisibleImages()
+
+                    invalidate()
+                }
+
+            } catch (e: Exception) {
+
+                runOnUiThread {
+
+                    loading =
+                        false
+
+                    loadingError =
+                        "Error cargando catálogo: ${
+                            e.message
+                                ?: "respuesta inválida"
+                        }"
+
+                    invalidate()
+                }
+            }
+        }
+    }
+
+    private fun loadVisibleImages() {
+
+        val imageUrls =
+            mutableListOf<String>()
+
+        channels
+            .take(12)
+            .forEach {
+
+                it.icon?.let { url ->
+
+                    if (
+                        url.isNotBlank()
+                    ) {
+
+                        imageUrls.add(
+                            url
+                        )
+                    }
+                }
+            }
+
+        movies
+            .take(12)
+            .forEach {
+
+                it.icon?.let { url ->
+
+                    if (
+                        url.isNotBlank()
+                    ) {
+
+                        imageUrls.add(
+                            url
+                        )
+                    }
+                }
+            }
+
+        imageUrls
+            .distinct()
+            .forEach { imageUrl ->
+
+                if (
+                    loadedImages[imageUrl]
+                        == null
+                ) {
+
+                    ImageCache.load(
+                        imageUrl
+                    ) { bitmap ->
+
+                        if (
+                            bitmap != null
+                        ) {
+
+                            post {
+
+                                loadedImages[
+                                    imageUrl
+                                ] = bitmap
+
+                                invalidate()
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
     // =========================================================
     // DRAW
     // =========================================================
@@ -1059,11 +1663,29 @@ class HomeView(
         )
 
         drawBackground(canvas)
+
         drawSidebar(canvas)
+
         drawHeader(canvas)
+
         drawHero(canvas)
+
         drawLiveSection(canvas)
+
         drawMoviesSection(canvas)
+
+        if (loading) {
+
+            drawLoading(canvas)
+        }
+
+        loadingError?.let {
+
+            drawError(
+                canvas,
+                it
+            )
+        }
     }
 
     // =========================================================
@@ -1103,20 +1725,6 @@ class HomeView(
             width * 0.88f,
             height * 0.10f,
             width * 0.25f,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                3,
-                20,
-                36
-            )
-
-        canvas.drawCircle(
-            width * 0.78f,
-            height * 0.95f,
-            width * 0.30f,
             paint
         )
     }
@@ -1198,20 +1806,15 @@ class HomeView(
             paint
         )
 
-        paint.color =
-            Color.rgb(
-                20,
-                60,
-                90
+        val sections =
+            arrayOf(
+                "Inicio",
+                "TV",
+                "Películas",
+                "Buscar",
+                "Favoritos",
+                "Configuración"
             )
-
-        canvas.drawRect(
-            sidebarWidth * 0.10f,
-            102f * scale,
-            sidebarWidth * 0.90f,
-            103f * scale,
-            paint
-        )
 
         val startY =
             155f * scale
@@ -1252,25 +1855,6 @@ class HomeView(
                     13f * scale,
                     paint
                 )
-
-                paint.color =
-                    Color.rgb(
-                        80,
-                        190,
-                        255
-                    )
-
-                canvas.drawRoundRect(
-                    RectF(
-                        sidebarWidth * 0.07f,
-                        y - 27f * scale,
-                        sidebarWidth * 0.09f,
-                        y + 9f * scale
-                    ),
-                    3f * scale,
-                    3f * scale,
-                    paint
-                )
             }
 
             paint.color =
@@ -1284,10 +1868,7 @@ class HomeView(
                     )
 
             paint.textSize =
-                if (focused)
-                    19f * scale
-                else
-                    18f * scale
+                18f * scale
 
             paint.isFakeBoldText =
                 focused
@@ -1337,26 +1918,19 @@ class HomeView(
             )
 
         paint.textSize =
-            15f * scale
+            13f * scale
+
+        val info =
+            if (loading)
+                "Cargando catálogo..."
+            else
+                "${channels.size} canales  •  ${movies.size} películas"
 
         canvas.drawText(
-            "⌕  Buscar",
-            contentRight - 150f * scale,
+            info,
+            contentRight -
+                    300f * scale,
             42f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                170,
-                190,
-                210
-            )
-
-        canvas.drawCircle(
-            contentRight - 18f * scale,
-            36f * scale,
-            13f * scale,
             paint
         )
     }
@@ -1385,17 +1959,8 @@ class HomeView(
             )
 
         val bottom =
-            top + heroHeight
-
-        val heroFocused =
-            focusZone == 0
-
-        // -----------------------------------------------------
-        // FONDO
-        // -----------------------------------------------------
-
-        paint.style =
-            Paint.Style.FILL
+            top +
+                    heroHeight
 
         paint.color =
             Color.rgb(
@@ -1416,255 +1981,36 @@ class HomeView(
             paint
         )
 
-        // -----------------------------------------------------
-        // VISUAL DERECHA
-        // -----------------------------------------------------
-
         paint.color =
             Color.rgb(
                 5,
-                38,
-                65
-            )
-
-        val visualPath =
-            Path()
-
-        visualPath.moveTo(
-            left +
-                    (right - left) *
-                    0.48f,
-            top
-        )
-
-        visualPath.lineTo(
-            right,
-            top
-        )
-
-        visualPath.lineTo(
-            right,
-            bottom
-        )
-
-        visualPath.lineTo(
-            left +
-                    (right - left) *
-                    0.38f,
-            bottom
-        )
-
-        visualPath.close()
-
-        canvas.drawPath(
-            visualPath,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // ELEMENTOS CINEMATOGRÁFICOS
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.rgb(
-                7,
-                60,
-                98
+                45,
+                75
             )
 
         canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            135f * scale,
+            right - 220f * scale,
+            top + heroHeight / 2f,
+            125f * scale,
             paint
         )
 
         paint.color =
             Color.rgb(
-                10,
-                85,
-                135
+                15,
+                95,
+                150
             )
 
         canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            90f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                18,
-                110,
-                175
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            45f * scale,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // PLAY
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.argb(
-                65,
-                255,
-                255,
-                255
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            78f * scale,
+            right - 220f * scale,
+            top + heroHeight / 2f,
+            75f * scale,
             paint
         )
 
         paint.color =
             Color.WHITE
-
-        val play =
-            Path()
-
-        val playX =
-            right - 230f * scale
-
-        val playY =
-            top + heroHeight * 0.48f
-
-        play.moveTo(
-            playX - 20f * scale,
-            playY - 31f * scale
-        )
-
-        play.lineTo(
-            playX + 35f * scale,
-            playY
-        )
-
-        play.lineTo(
-            playX - 20f * scale,
-            playY + 31f * scale
-        )
-
-        play.close()
-
-        canvas.drawPath(
-            play,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // DEGRADADO
-        // -----------------------------------------------------
-
-        val gradientWidth =
-            (right - left) * 0.65f
-
-        val gradientSteps =
-            16
-
-        for (
-            i in 0 until gradientSteps
-        ) {
-
-            val progress =
-                i.toFloat() /
-                        gradientSteps.toFloat()
-
-            val alpha =
-                (
-                    175f *
-                            (1f - progress)
-                    )
-                    .toInt()
-                    .coerceIn(
-                        0,
-                        175
-                    )
-
-            paint.color =
-                Color.argb(
-                    alpha,
-                    2,
-                    9,
-                    18
-                )
-
-            val sectionLeft =
-                left +
-                        gradientWidth *
-                        progress
-
-            val sectionRight =
-                left +
-                        gradientWidth *
-                        (
-                            (i + 1).toFloat() /
-                                    gradientSteps.toFloat()
-                            )
-
-            canvas.drawRect(
-                sectionLeft,
-                top,
-                sectionRight,
-                bottom,
-                paint
-            )
-        }
-
-        // -----------------------------------------------------
-        // FOCO
-        // -----------------------------------------------------
-
-        if (heroFocused) {
-
-            paint.style =
-                Paint.Style.STROKE
-
-            paint.strokeWidth =
-                3f * scale
-
-            paint.color =
-                Color.argb(
-                    235,
-                    255,
-                    255,
-                    255
-                )
-
-            canvas.drawRoundRect(
-                RectF(
-                    left - 2f * scale,
-                    top - 2f * scale,
-                    right + 2f * scale,
-                    bottom + 2f * scale
-                ),
-                23f * scale,
-                23f * scale,
-                paint
-            )
-
-            paint.style =
-                Paint.Style.FILL
-        }
-
-        // -----------------------------------------------------
-        // TEXTO
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.rgb(
-                75,
-                180,
-                255
-            )
 
         paint.textSize =
             14f * scale
@@ -1679,14 +2025,8 @@ class HomeView(
             paint
         )
 
-        paint.color =
-            Color.WHITE
-
         paint.textSize =
             40f * scale
-
-        paint.isFakeBoldText =
-            true
 
         canvas.drawText(
             "TVBOX PREMIUM",
@@ -1715,44 +2055,19 @@ class HomeView(
             paint
         )
 
-        // -----------------------------------------------------
-        // BOTÓN
-        // -----------------------------------------------------
-
-        val buttonLeft =
-            left + 36f * scale
-
-        val buttonTop =
-            top + 175f * scale
-
-        val buttonRight =
-            buttonLeft +
-                    168f * scale
-
-        val buttonBottom =
-            buttonTop +
-                    52f * scale
-
         paint.color =
-            if (heroFocused)
-                Color.rgb(
-                    35,
-                    145,
-                    255
-                )
-            else
-                Color.rgb(
-                    15,
-                    115,
-                    225
-                )
+            Color.rgb(
+                15,
+                115,
+                225
+            )
 
         canvas.drawRoundRect(
             RectF(
-                buttonLeft,
-                buttonTop,
-                buttonRight,
-                buttonBottom
+                left + 36f * scale,
+                top + 175f * scale,
+                left + 204f * scale,
+                top + 227f * scale
             ),
             12f * scale,
             12f * scale,
@@ -1770,8 +2085,8 @@ class HomeView(
 
         canvas.drawText(
             "▶  VER AHORA",
-            buttonLeft + 20f * scale,
-            buttonTop + 33f * scale,
+            left + 55f * scale,
+            top + 208f * scale,
             paint
         )
     }
@@ -1825,8 +2140,14 @@ class HomeView(
             false
 
         canvas.drawText(
-            "Canales disponibles",
-            contentLeft + 135f * scale,
+            if (
+                liveCategories.isNotEmpty()
+            )
+                "${liveCategories.size} categorías"
+            else
+                "Canales disponibles",
+            contentLeft +
+                    135f * scale,
             titleY,
             paint
         )
@@ -1854,200 +2175,127 @@ class HomeView(
             finalWidth *
                     0.66f
 
-        channels.forEachIndexed {
-                index,
-                channel ->
+        channels
+            .take(30)
+            .forEachIndexed {
+                    index,
+                    channel ->
 
-            val x =
-                contentLeft +
-                        index *
-                        (
-                            finalWidth +
-                                    gap
-                            ) -
-                        tvScroll
+                val x =
+                    contentLeft +
+                            index *
+                            (
+                                finalWidth +
+                                        gap
+                                ) -
+                            tvScroll
 
-            if (
-                x + finalWidth <
-                contentLeft ||
-                x > contentRight
-            ) {
-                return@forEachIndexed
-            }
+                if (
+                    x + finalWidth <
+                    contentLeft ||
+                    x > contentRight
+                ) {
+                    return@forEachIndexed
+                }
 
-            val focused =
-                focusZone == 1 &&
-                        selectedCard == index
+                val focused =
+                    focusZone == 1 &&
+                            selectedCard == index
 
-            paint.color =
-                if (focused)
-                    Color.rgb(
-                        18,
-                        104,
-                        190
-                    )
-                else
-                    Color.rgb(
-                        8,
-                        30,
-                        51
-                    )
+                paint.color =
+                    if (focused)
+                        Color.rgb(
+                            18,
+                            104,
+                            190
+                        )
+                    else
+                        Color.rgb(
+                            8,
+                            30,
+                            51
+                        )
 
-            canvas.drawRoundRect(
-                RectF(
-                    x,
-                    top,
-                    x + finalWidth,
-                    top + cardHeight
-                ),
-                15f * scale,
-                15f * scale,
-                paint
-            )
+                canvas.drawRoundRect(
+                    RectF(
+                        x,
+                        top,
+                        x + finalWidth,
+                        top + cardHeight
+                    ),
+                    15f * scale,
+                    15f * scale,
+                    paint
+                )
 
-            if (focused) {
+                channel.icon?.let {
 
-                paint.style =
-                    Paint.Style.STROKE
+                    val bitmap =
+                        loadedImages[it]
 
-                paint.strokeWidth =
-                    3f * scale
+                    if (
+                        bitmap != null
+                    ) {
+
+                        drawBitmapCover(
+                            canvas,
+                            bitmap,
+                            x + 6f * scale,
+                            top + 6f * scale,
+                            finalWidth -
+                                    12f * scale,
+                            cardHeight *
+                                    0.65f
+                        )
+                    }
+                }
 
                 paint.color =
                     Color.WHITE
 
-                canvas.drawRoundRect(
-                    RectF(
-                        x - 2f * scale,
-                        top - 2f * scale,
-                        x + finalWidth +
-                                2f * scale,
-                        top + cardHeight +
-                                2f * scale
-                    ),
-                    16f * scale,
-                    16f * scale,
+                paint.textSize =
+                    13f * scale
+
+                paint.isFakeBoldText =
+                    true
+
+                val displayName =
+                    shorten(
+                        channel.name,
+                        20
+                    )
+
+                canvas.drawText(
+                    displayName,
+                    x + 10f * scale,
+                    top +
+                            cardHeight *
+                            0.84f,
                     paint
                 )
 
-                paint.style =
-                    Paint.Style.FILL
+                paint.color =
+                    Color.rgb(
+                        125,
+                        195,
+                        255
+                    )
+
+                paint.textSize =
+                    10f * scale
+
+                paint.isFakeBoldText =
+                    false
+
+                canvas.drawText(
+                    "● EN VIVO",
+                    x + 10f * scale,
+                    top +
+                            cardHeight *
+                            0.95f,
+                    paint
+                )
             }
-
-            paint.color =
-                Color.rgb(
-                    14,
-                    50,
-                    78
-                )
-
-            canvas.drawCircle(
-                x + finalWidth / 2f,
-                top + cardHeight * 0.37f,
-                min(
-                    finalWidth,
-                    cardHeight
-                ) * 0.22f,
-                paint
-            )
-
-            paint.color =
-                Color.WHITE
-
-            val miniPlay =
-                Path()
-
-            val cx =
-                x +
-                        finalWidth / 2f
-
-            val cy =
-                top +
-                        cardHeight * 0.37f
-
-            miniPlay.moveTo(
-                cx - 8f * scale,
-                cy - 12f * scale
-            )
-
-            miniPlay.lineTo(
-                cx + 12f * scale,
-                cy
-            )
-
-            miniPlay.lineTo(
-                cx - 8f * scale,
-                cy + 12f * scale
-            )
-
-            miniPlay.close()
-
-            canvas.drawPath(
-                miniPlay,
-                paint
-            )
-
-            paint.color =
-                Color.WHITE
-
-            paint.textSize =
-                14f * scale
-
-            paint.isFakeBoldText =
-                true
-
-            val textWidth =
-                paint.measureText(
-                    channel
-                )
-
-            canvas.drawText(
-                channel,
-                x +
-                        (
-                            finalWidth -
-                                    textWidth
-                            ) / 2f,
-                top +
-                        cardHeight *
-                        0.73f,
-                paint
-            )
-
-            paint.color =
-                Color.rgb(
-                    125,
-                    195,
-                    255
-                )
-
-            paint.textSize =
-                10f * scale
-
-            paint.isFakeBoldText =
-                false
-
-            val live =
-                "● EN VIVO"
-
-            val liveWidth =
-                paint.measureText(
-                    live
-                )
-
-            canvas.drawText(
-                live,
-                x +
-                        (
-                            finalWidth -
-                                    liveWidth
-                            ) / 2f,
-                top +
-                        cardHeight *
-                        0.89f,
-                paint
-            )
-        }
     }
 
     // =========================================================
@@ -2125,8 +2373,14 @@ class HomeView(
             false
 
         canvas.drawText(
-            "Recomendadas para ti",
-            contentLeft + 245f * scale,
+            if (
+                vodCategories.isNotEmpty()
+            )
+                "${vodCategories.size} categorías"
+            else
+                "Recomendadas para ti",
+            contentLeft +
+                    245f * scale,
             titleY,
             paint
         )
@@ -2154,126 +2408,317 @@ class HomeView(
             finalWidth *
                     1.34f
 
-        movies.forEachIndexed {
-                index,
-                movie ->
+        movies
+            .take(30)
+            .forEachIndexed {
+                    index,
+                    movie ->
 
-            val x =
-                contentLeft +
-                        index *
-                        (
-                            finalWidth +
-                                    gap
-                            ) -
-                        movieScroll
+                val x =
+                    contentLeft +
+                            index *
+                            (
+                                finalWidth +
+                                        gap
+                                ) -
+                            movieScroll
 
-            if (
-                x + finalWidth <
-                contentLeft ||
-                x > contentRight
-            ) {
-                return@forEachIndexed
-            }
+                if (
+                    x + finalWidth <
+                    contentLeft ||
+                    x > contentRight
+                ) {
+                    return@forEachIndexed
+                }
 
-            val focused =
-                focusZone == 2 &&
-                        selectedCard == index
+                val focused =
+                    focusZone == 2 &&
+                            selectedCard == index
 
-            paint.color =
-                if (focused)
+                paint.color =
                     Color.rgb(
-                        20,
-                        80,
-                        135
-                    )
-                else
-                    Color.rgb(
-                        10 + index * 4,
-                        26 + index * 4,
-                        45 + index * 5
+                        9,
+                        27,
+                        45
                     )
 
-            canvas.drawRoundRect(
-                RectF(
-                    x,
-                    top,
-                    x + finalWidth,
-                    top + cardHeight
-                ),
-                12f * scale,
-                12f * scale,
-                paint
-            )
-
-            paint.color =
-                Color.rgb(
-                    18 + index * 4,
-                    43 + index * 3,
-                    68 + index * 4
+                canvas.drawRoundRect(
+                    RectF(
+                        x,
+                        top,
+                        x + finalWidth,
+                        top + cardHeight
+                    ),
+                    12f * scale,
+                    12f * scale,
+                    paint
                 )
 
-            canvas.drawRoundRect(
-                RectF(
-                    x + 7f * scale,
-                    top + 7f * scale,
-                    x + finalWidth -
-                            7f * scale,
-                    top +
+                movie.icon?.let {
+
+                    val bitmap =
+                        loadedImages[it]
+
+                    if (
+                        bitmap != null
+                    ) {
+
+                        drawBitmapCover(
+                            canvas,
+                            bitmap,
+                            x + 5f * scale,
+                            top + 5f * scale,
+                            finalWidth -
+                                    10f * scale,
                             cardHeight *
-                            0.77f
-                ),
-                9f * scale,
-                9f * scale,
-                paint
-            )
+                                    0.78f
+                        )
+                    }
+                }
 
-            if (focused) {
+                if (
+                    focused
+                ) {
 
-                paint.style =
-                    Paint.Style.STROKE
+                    paint.style =
+                        Paint.Style.STROKE
 
-                paint.strokeWidth =
-                    3f * scale
+                    paint.strokeWidth =
+                        3f * scale
+
+                    paint.color =
+                        Color.WHITE
+
+                    canvas.drawRoundRect(
+                        RectF(
+                            x - 2f * scale,
+                            top - 2f * scale,
+                            x + finalWidth +
+                                    2f * scale,
+                            top + cardHeight +
+                                    2f * scale
+                        ),
+                        13f * scale,
+                        13f * scale,
+                        paint
+                    )
+
+                    paint.style =
+                        Paint.Style.FILL
+                }
 
                 paint.color =
                     Color.WHITE
 
-                canvas.drawRoundRect(
-                    RectF(
-                        x - 2f * scale,
-                        top - 2f * scale,
-                        x + finalWidth +
-                                2f * scale,
-                        top + cardHeight +
-                                2f * scale
+                paint.textSize =
+                    13f * scale
+
+                paint.isFakeBoldText =
+                    true
+
+                canvas.drawText(
+                    shorten(
+                        movie.name,
+                        20
                     ),
-                    13f * scale,
-                    13f * scale,
+                    x + 10f * scale,
+                    top +
+                            cardHeight *
+                            0.88f,
                     paint
                 )
-
-                paint.style =
-                    Paint.Style.FILL
             }
+    }
 
-            paint.color =
-                Color.WHITE
+    // =========================================================
+    // LOADING
+    // =========================================================
 
-            paint.textSize =
-                13f * scale
+    private fun drawLoading(
+        canvas: Canvas
+    ) {
 
-            paint.isFakeBoldText =
-                true
-
-            canvas.drawText(
-                movie,
-                x + 11f * scale,
-                top +
-                        cardHeight *
-                        0.87f,
-                paint
+        paint.color =
+            Color.argb(
+                220,
+                2,
+                9,
+                18
             )
+
+        canvas.drawRect(
+            contentLeft,
+            65f * scale,
+            contentRight,
+            height.toFloat(),
+            paint
+        )
+
+        paint.color =
+            Color.WHITE
+
+        paint.textAlign =
+            Paint.Align.CENTER
+
+        paint.textSize =
+            22f * scale
+
+        paint.isFakeBoldText =
+            true
+
+        canvas.drawText(
+            "CARGANDO CATÁLOGO...",
+            (contentLeft +
+                    contentRight) / 2f,
+            height * 0.52f,
+            paint
+        )
+
+        paint.color =
+            Color.rgb(
+                100,
+                170,
+                230
+            )
+
+        paint.textSize =
+            13f * scale
+
+        paint.isFakeBoldText =
+            false
+
+        canvas.drawText(
+            "Conectando con el servidor",
+            (contentLeft +
+                    contentRight) / 2f,
+            height * 0.57f,
+            paint
+        )
+
+        paint.textAlign =
+            Paint.Align.LEFT
+    }
+
+    // =========================================================
+    // ERROR
+    // =========================================================
+
+    private fun drawError(
+        canvas: Canvas,
+        message: String
+    ) {
+
+        paint.color =
+            Color.rgb(
+                255,
+                110,
+                110
+            )
+
+        paint.textSize =
+            13f * scale
+
+        paint.textAlign =
+            Paint.Align.CENTER
+
+        canvas.drawText(
+            message,
+            (contentLeft +
+                    contentRight) / 2f,
+            height * 0.90f,
+            paint
+        )
+
+        paint.textAlign =
+            Paint.Align.LEFT
+    }
+
+    // =========================================================
+    // BITMAP COVER
+    // =========================================================
+
+    private fun drawBitmapCover(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float
+    ) {
+
+        val sourceRatio =
+            bitmap.width.toFloat() /
+                    bitmap.height.toFloat()
+
+        val targetRatio =
+            w / h
+
+        var srcWidth =
+            bitmap.width
+
+        var srcHeight =
+            bitmap.height
+
+        var srcX =
+            0
+
+        var srcY =
+            0
+
+        if (
+            sourceRatio >
+            targetRatio
+        ) {
+
+            srcWidth =
+                (
+                    bitmap.height *
+                            targetRatio
+                    ).toInt()
+
+            srcX =
+                (
+                    bitmap.width -
+                            srcWidth
+                    ) / 2
+
+        } else {
+
+            srcHeight =
+                (
+                    bitmap.width /
+                            targetRatio
+                    ).toInt()
+
+            srcY =
+                (
+                    bitmap.height -
+                            srcHeight
+                    ) / 2
         }
+
+        val src =
+            Rect(
+                srcX,
+                srcY,
+                srcX + srcWidth,
+                srcY + srcHeight
+            )
+
+        val dst =
+            RectF(
+                x,
+                y,
+                x + w,
+                y + h
+            )
+
+        canvas.drawBitmap(
+            bitmap,
+            src,
+            dst,
+            paint
+        )
     }
 
     // =========================================================
@@ -2284,7 +2729,9 @@ class HomeView(
         event: MotionEvent
     ): Boolean {
 
-        when (event.action) {
+        when (
+            event.action
+        ) {
 
             MotionEvent.ACTION_DOWN -> {
 
@@ -2327,9 +2774,8 @@ class HomeView(
                                 -220f * scale
 
                         tvScroll =
-                            tvScroll.coerceIn(
-                                0f,
-                                900f * scale
+                            tvScroll.coerceAtLeast(
+                                0f
                             )
 
                     } else if (
@@ -2343,9 +2789,8 @@ class HomeView(
                                 -220f * scale
 
                         movieScroll =
-                            movieScroll.coerceIn(
-                                0f,
-                                900f * scale
+                            movieScroll.coerceAtLeast(
+                                0f
                             )
                     }
 
@@ -2385,10 +2830,6 @@ class HomeView(
         y: Float
     ) {
 
-        // -----------------------------------------------------
-        // SIDEBAR
-        // -----------------------------------------------------
-
         if (
             x <= sidebarWidth
         ) {
@@ -2399,9 +2840,9 @@ class HomeView(
             val spacing =
                 64f * scale
 
-            sections.forEachIndexed {
-                    index,
-                    _ ->
+            for (
+                index in 0..5
+            ) {
 
                 val top =
                     startY +
@@ -2420,17 +2861,11 @@ class HomeView(
                     selectedSection =
                         index
 
-                    selectedCard =
-                        0
-
                     focusZone =
                         3
 
-                    tvScroll =
-                        0f
-
-                    movieScroll =
-                        0f
+                    selectedCard =
+                        0
 
                     invalidate()
 
@@ -2438,10 +2873,6 @@ class HomeView(
                 }
             }
         }
-
-        // -----------------------------------------------------
-        // HERO COMPLETO
-        // -----------------------------------------------------
 
         val heroTop =
             65f * scale
@@ -2456,30 +2887,9 @@ class HomeView(
             heroTop +
                     heroHeight
 
-        if (
-            x >= contentLeft &&
-            x <= contentRight &&
-            y >= heroTop &&
-            y <= heroBottom
-        ) {
-
-            selectedSection =
-                0
-
-            selectedCard =
-                0
-
-            focusZone =
-                0
-
-            invalidate()
-
-            return
-        }
-
-        // -----------------------------------------------------
-        // VER AHORA
-        // -----------------------------------------------------
+        // =====================================================
+        // BOTÓN ANTES DEL HERO
+        // =====================================================
 
         val buttonTop =
             heroTop +
@@ -2508,13 +2918,34 @@ class HomeView(
             return
         }
 
-        // -----------------------------------------------------
+        // =====================================================
+        // HERO
+        // =====================================================
+
+        if (
+            x >= contentLeft &&
+            x <= contentRight &&
+            y >= heroTop &&
+            y <= heroBottom
+        ) {
+
+            selectedSection =
+                0
+
+            focusZone =
+                0
+
+            invalidate()
+
+            return
+        }
+
+        // =====================================================
         // TV
-        // -----------------------------------------------------
+        // =====================================================
 
         val liveTitle =
-            heroTop +
-                    heroHeight +
+            heroBottom +
                     43f * scale
 
         val liveTop =
@@ -2545,44 +2976,46 @@ class HomeView(
                     liveHeight
         ) {
 
-            channels.forEachIndexed {
-                    index,
-                    _ ->
+            channels
+                .take(30)
+                .forEachIndexed {
+                        index,
+                        _ ->
 
-                val cardLeft =
-                    contentLeft +
-                            index *
-                            (
-                                liveWidth +
-                                        gap
-                                ) -
-                            tvScroll
+                    val cardLeft =
+                        contentLeft +
+                                index *
+                                (
+                                    liveWidth +
+                                            gap
+                                    ) -
+                                tvScroll
 
-                if (
-                    x >= cardLeft &&
-                    x <= cardLeft +
-                            liveWidth
-                ) {
+                    if (
+                        x >= cardLeft &&
+                        x <= cardLeft +
+                                liveWidth
+                    ) {
 
-                    selectedSection =
-                        1
+                        selectedSection =
+                            1
 
-                    selectedCard =
-                        index
+                        selectedCard =
+                            index
 
-                    focusZone =
-                        1
+                        focusZone =
+                            1
 
-                    invalidate()
+                        invalidate()
 
-                    return
+                        return
+                    }
                 }
-            }
         }
 
-        // -----------------------------------------------------
+        // =====================================================
         // PELÍCULAS
-        // -----------------------------------------------------
+        // =====================================================
 
         val movieTitle =
             liveTop +
@@ -2618,39 +3051,41 @@ class HomeView(
                     movieHeight
         ) {
 
-            movies.forEachIndexed {
-                    index,
-                    _ ->
+            movies
+                .take(30)
+                .forEachIndexed {
+                        index,
+                        _ ->
 
-                val cardLeft =
-                    contentLeft +
-                            index *
-                            (
-                                movieWidth +
-                                        movieGap
-                                ) -
-                            movieScroll
+                    val cardLeft =
+                        contentLeft +
+                                index *
+                                (
+                                    movieWidth +
+                                            movieGap
+                                    ) -
+                                movieScroll
 
-                if (
-                    x >= cardLeft &&
-                    x <= cardLeft +
-                            movieWidth
-                ) {
+                    if (
+                        x >= cardLeft &&
+                        x <= cardLeft +
+                                movieWidth
+                    ) {
 
-                    selectedSection =
-                        2
+                        selectedSection =
+                            2
 
-                    selectedCard =
-                        index
+                        selectedCard =
+                            index
 
-                    focusZone =
-                        2
+                        focusZone =
+                            2
 
-                    invalidate()
+                        invalidate()
 
-                    return
+                        return
+                    }
                 }
-            }
         }
     }
 
@@ -2663,11 +3098,15 @@ class HomeView(
         event: KeyEvent
     ): Boolean {
 
-        when (keyCode) {
+        when (
+            keyCode
+        ) {
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
 
-                when (focusZone) {
+                when (
+                    focusZone
+                ) {
 
                     0 -> {
 
@@ -2682,7 +3121,10 @@ class HomeView(
 
                         if (
                             selectedCard <
-                            channels.lastIndex
+                            min(
+                                channels.lastIndex,
+                                29
+                            )
                         ) {
 
                             selectedCard++
@@ -2695,7 +3137,10 @@ class HomeView(
 
                         if (
                             selectedCard <
-                            movies.lastIndex
+                            min(
+                                movies.lastIndex,
+                                29
+                            )
                         ) {
 
                             selectedCard++
@@ -2718,7 +3163,9 @@ class HomeView(
 
             KeyEvent.KEYCODE_DPAD_LEFT -> {
 
-                when (focusZone) {
+                when (
+                    focusZone
+                ) {
 
                     1 -> {
 
@@ -2768,7 +3215,9 @@ class HomeView(
 
             KeyEvent.KEYCODE_DPAD_DOWN -> {
 
-                when (focusZone) {
+                when (
+                    focusZone
+                ) {
 
                     0 -> {
 
@@ -2802,8 +3251,7 @@ class HomeView(
                         selectedSection++
 
                         if (
-                            selectedSection >
-                            sections.lastIndex
+                            selectedSection > 5
                         ) {
 
                             selectedSection =
@@ -2819,7 +3267,9 @@ class HomeView(
 
             KeyEvent.KEYCODE_DPAD_UP -> {
 
-                when (focusZone) {
+                when (
+                    focusZone
+                ) {
 
                     0 -> {
 
@@ -2851,7 +3301,7 @@ class HomeView(
                         ) {
 
                             selectedSection =
-                                sections.lastIndex
+                                5
                         }
                     }
                 }
@@ -2872,25 +3322,10 @@ class HomeView(
 
             KeyEvent.KEYCODE_BACK -> {
 
-                if (
-                    focusZone != 3
-                ) {
-
-                    focusZone =
-                        3
-
-                    invalidate()
-
-                    return true
-                }
+                focusZone =
+                    3
 
                 selectedSection =
-                    0
-
-                selectedCard =
-                    0
-
-                focusZone =
                     0
 
                 invalidate()
@@ -2964,7 +3399,7 @@ class HomeView(
     }
 
     // =========================================================
-    // VISIBILIDAD PELÍCULAS
+    // VISIBILIDAD MOVIES
     // =========================================================
 
     private fun keepMovieCardVisible() {
@@ -3027,7 +3462,9 @@ class HomeView(
 
     private fun handleEnter() {
 
-        when (focusZone) {
+        when (
+            focusZone
+        ) {
 
             0 -> {
 
@@ -3041,18 +3478,20 @@ class HomeView(
             1 -> {
 
                 // Próximo paso:
-                // abrir Live TV real
+                // abrir reproductor Live real
             }
 
             2 -> {
 
                 // Próximo paso:
-                // abrir VOD real
+                // abrir detalle VOD
             }
 
             3 -> {
 
-                when (selectedSection) {
+                when (
+                    selectedSection
+                ) {
 
                     0 -> {
 
@@ -3077,22 +3516,33 @@ class HomeView(
                         selectedCard =
                             0
                     }
-
-                    3 -> {
-                        // Buscar
-                    }
-
-                    4 -> {
-                        // Favoritos
-                    }
-
-                    5 -> {
-                        // Configuración
-                    }
                 }
             }
         }
 
         invalidate()
+    }
+
+    // =========================================================
+    // UTILIDADES
+    // =========================================================
+
+    private fun shorten(
+        text: String,
+        maxLength: Int
+    ): String {
+
+        return if (
+            text.length <= maxLength
+        ) {
+
+            text
+
+        } else {
+
+            text.take(
+                maxLength - 1
+            ) + "…"
+        }
     }
 }
