@@ -7,34 +7,49 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
+import android.text.InputType
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.content.Context
 import android.view.inputmethod.InputMethodManager
+import android.content.Context
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 class MainActivity : Activity() {
 
+    companion object {
+        private const val SERVER_URL =
+            "http://38.242.252.80:80"
+    }
+
     private lateinit var root: FrameLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = Color.rgb(2, 8, 16)
-        window.navigationBarColor = Color.rgb(2, 8, 16)
+        window.statusBarColor =
+            Color.rgb(2, 8, 16)
+
+        window.navigationBarColor =
+            Color.rgb(2, 8, 16)
 
         root = FrameLayout(this)
 
-        showLogin()
-
         setContentView(root)
+
+        showLogin()
     }
 
     // =========================================================
@@ -45,32 +60,227 @@ class MainActivity : Activity() {
 
         root.removeAllViews()
 
-        val loginView = LoginView(this) { username, password ->
+        root.addView(
+            LoginView(
+                context = this,
+                serverUrl = SERVER_URL
+            ) { username, password ->
 
-            if (
-                username.trim().isNotEmpty() &&
-                password.trim().isNotEmpty()
-            ) {
-
-                hideKeyboard()
-
-                showHome()
+                authenticate(
+                    username,
+                    password
+                )
             }
-        }
+        )
+    }
 
-        root.addView(loginView)
+    // =========================================================
+    // AUTENTICACIÓN XTREAM
+    // =========================================================
+
+    private fun authenticate(
+        username: String,
+        password: String
+    ) {
+
+        Thread {
+
+            var connection:
+                    HttpURLConnection? = null
+
+            try {
+
+                val encodedUser =
+                    URLEncoder.encode(
+                        username,
+                        "UTF-8"
+                    )
+
+                val encodedPassword =
+                    URLEncoder.encode(
+                        password,
+                        "UTF-8"
+                    )
+
+                val apiUrl =
+                    "$SERVER_URL/player_api.php" +
+                            "?username=$encodedUser" +
+                            "&password=$encodedPassword"
+
+                val url =
+                    URL(apiUrl)
+
+                connection =
+                    url.openConnection()
+                            as HttpURLConnection
+
+                connection.requestMethod =
+                    "GET"
+
+                connection.connectTimeout =
+                    10000
+
+                connection.readTimeout =
+                    10000
+
+                connection.instanceFollowRedirects =
+                    true
+
+                val responseCode =
+                    connection.responseCode
+
+                if (
+                    responseCode !in
+                    200..299
+                ) {
+
+                    runOnUiThread {
+
+                        showLoginError(
+                            "No se pudo conectar al servidor."
+                        )
+                    }
+
+                    return@Thread
+                }
+
+                val response =
+                    connection.inputStream
+                        .bufferedReader()
+                        .use {
+                            it.readText()
+                        }
+
+                val json =
+                    JSONObject(response)
+
+                val userInfo =
+                    json.optJSONObject(
+                        "user_info"
+                    )
+
+                if (userInfo == null) {
+
+                    runOnUiThread {
+
+                        showLoginError(
+                            "Respuesta inválida del servidor."
+                        )
+                    }
+
+                    return@Thread
+                }
+
+                val auth =
+                    userInfo.optString(
+                        "auth",
+                        "0"
+                    )
+
+                if (
+                    auth == "1" ||
+                    auth.equals(
+                        "true",
+                        ignoreCase = true
+                    )
+                ) {
+
+                    val server =
+                        XtreamSession(
+                            serverUrl = SERVER_URL,
+                            username = username,
+                            password = password
+                        )
+
+                    runOnUiThread {
+
+                        hideKeyboard()
+
+                        showHome(
+                            server
+                        )
+                    }
+
+                } else {
+
+                    val status =
+                        userInfo.optString(
+                            "status",
+                            ""
+                        )
+
+                    runOnUiThread {
+
+                        if (
+                            status.isNotEmpty()
+                        ) {
+
+                            showLoginError(
+                                "Acceso rechazado: $status"
+                            )
+
+                        } else {
+
+                            showLoginError(
+                                "Usuario o contraseña incorrectos."
+                            )
+                        }
+                    }
+                }
+
+            } catch (e: Exception) {
+
+                runOnUiThread {
+
+                    showLoginError(
+                        "Error de conexión: ${e.message ?: "servidor no disponible"}"
+                    )
+                }
+
+            } finally {
+
+                connection?.disconnect()
+            }
+
+        }.start()
+    }
+
+    // =========================================================
+    // ERROR LOGIN
+    // =========================================================
+
+    private fun showLoginError(
+        message: String
+    ) {
+
+        val view =
+            root.getChildAt(0)
+
+        if (
+            view is LoginView
+        ) {
+
+            view.showError(
+                message
+            )
+        }
     }
 
     // =========================================================
     // HOME
     // =========================================================
 
-    private fun showHome() {
+    private fun showHome(
+        session: XtreamSession
+    ) {
 
         root.removeAllViews()
 
         root.addView(
-            HomeView(this)
+            HomeView(
+                context = this,
+                session = session
+            )
         )
     }
 
@@ -89,7 +299,8 @@ class MainActivity : Activity() {
 
     override fun onBackPressed() {
 
-        if (root.childCount > 0 &&
+        if (
+            root.childCount > 0 &&
             root.getChildAt(0) is HomeView
         ) {
 
@@ -104,12 +315,25 @@ class MainActivity : Activity() {
 
 
 // =============================================================
+// SESIÓN XTREAM
+// =============================================================
+
+data class XtreamSession(
+    val serverUrl: String,
+    val username: String,
+    val password: String
+)
+
+
+// =============================================================
 // LOGIN VIEW
 // =============================================================
 
 class LoginView(
     context: Context,
-    private val onLogin: (String, String) -> Unit
+    private val serverUrl: String,
+    private val onLogin:
+        (String, String) -> Unit
 ) : FrameLayout(context) {
 
     private val background =
@@ -122,6 +346,9 @@ class LoginView(
         EditText(context)
 
     private val loginButton =
+        TextView(context)
+
+    private val errorText =
         TextView(context)
 
     init {
@@ -142,12 +369,54 @@ class LoginView(
     private fun createLogin() {
 
         // =====================================================
+        // SERVIDOR
+        // =====================================================
+
+        val serverText =
+            TextView(context)
+
+        serverText.text =
+            serverUrl
+
+        serverText.gravity =
+            Gravity.CENTER
+
+        serverText.setTextColor(
+            Color.rgb(
+                90,
+                150,
+                205
+            )
+        )
+
+        serverText.textSize =
+            12f
+
+        val serverParams =
+            LayoutParams(
+                dp(450),
+                dp(35)
+            )
+
+        serverParams.gravity =
+            Gravity.CENTER
+
+        serverParams.topMargin =
+            dp(-125)
+
+        addView(
+            serverText,
+            serverParams
+        )
+
+        // =====================================================
         // USUARIO
         // =====================================================
 
         username.setSingleLine(true)
 
-        username.hint = "Usuario"
+        username.hint =
+            "Usuario"
 
         username.setTextColor(
             Color.WHITE
@@ -161,12 +430,13 @@ class LoginView(
             )
         )
 
-        username.textSize = 17f
+        username.textSize =
+            17f
 
         username.setPadding(
-            22,
+            dp(22),
             0,
-            22,
+            dp(22),
             0
         )
 
@@ -191,7 +461,7 @@ class LoginView(
             )
 
         userParams.gravity =
-            android.view.Gravity.CENTER
+            Gravity.CENTER
 
         userParams.topMargin =
             dp(-55)
@@ -207,7 +477,8 @@ class LoginView(
 
         password.setSingleLine(true)
 
-        password.hint = "Contraseña"
+        password.hint =
+            "Contraseña"
 
         password.setTextColor(
             Color.WHITE
@@ -221,18 +492,19 @@ class LoginView(
             )
         )
 
-        password.textSize = 17f
+        password.textSize =
+            17f
 
         password.setPadding(
-            22,
+            dp(22),
             0,
-            22,
+            dp(22),
             0
         )
 
         password.inputType =
-            android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
 
         password.background =
             roundedBackground(
@@ -255,7 +527,7 @@ class LoginView(
             )
 
         passParams.gravity =
-            android.view.Gravity.CENTER
+            Gravity.CENTER
 
         passParams.topMargin =
             dp(15)
@@ -266,29 +538,32 @@ class LoginView(
         )
 
         // =====================================================
-        // BOTÓN LOGIN
+        // BOTÓN
         // =====================================================
 
         loginButton.text =
             "INICIAR SESIÓN"
 
         loginButton.gravity =
-            android.view.Gravity.CENTER
+            Gravity.CENTER
 
         loginButton.setTextColor(
             Color.WHITE
         )
 
-        loginButton.textSize = 16f
+        loginButton.textSize =
+            16f
 
         loginButton.setTypeface(
             Typeface.DEFAULT,
             Typeface.BOLD
         )
 
-        loginButton.isFocusable = true
+        loginButton.isFocusable =
+            true
 
-        loginButton.isClickable = true
+        loginButton.isClickable =
+            true
 
         loginButton.background =
             roundedBackground(
@@ -311,7 +586,7 @@ class LoginView(
             )
 
         loginParams.gravity =
-            android.view.Gravity.CENTER
+            Gravity.CENTER
 
         loginParams.topMargin =
             dp(100)
@@ -323,51 +598,91 @@ class LoginView(
 
         loginButton.setOnClickListener {
 
+            val user =
+                username.text
+                    .toString()
+                    .trim()
+
+            val pass =
+                password.text
+                    .toString()
+
+            if (
+                user.isEmpty() ||
+                pass.isEmpty()
+            ) {
+
+                showError(
+                    "Ingresa usuario y contraseña."
+                )
+
+                return@setOnClickListener
+            }
+
+            loginButton.text =
+                "CONECTANDO..."
+
+            loginButton.isEnabled =
+                false
+
+            errorText.text = ""
+
             onLogin(
-                username.text.toString(),
-                password.text.toString()
+                user,
+                pass
             )
         }
 
         // =====================================================
-        // TEXTO INFERIOR
+        // ERROR
         // =====================================================
 
-        val info =
-            TextView(context)
+        errorText.gravity =
+            Gravity.CENTER
 
-        info.text =
-            "TV • Películas • Entretenimiento"
-
-        info.gravity =
-            android.view.Gravity.CENTER
-
-        info.setTextColor(
+        errorText.setTextColor(
             Color.rgb(
-                120,
-                145,
-                170
+                255,
+                105,
+                105
             )
         )
 
-        info.textSize = 13f
+        errorText.textSize =
+            13f
 
-        val infoParams =
+        val errorParams =
             LayoutParams(
-                dp(450),
-                dp(40)
+                dp(500),
+                dp(45)
             )
 
-        infoParams.gravity =
-            android.view.Gravity.CENTER
+        errorParams.gravity =
+            Gravity.CENTER
 
-        infoParams.topMargin =
-            dp(185)
+        errorParams.topMargin =
+            dp(165)
 
         addView(
-            info,
-            infoParams
+            errorText,
+            errorParams
         )
+    }
+
+    fun showError(
+        message: String
+    ) {
+
+        loginButton.text =
+            "INICIAR SESIÓN"
+
+        loginButton.isEnabled =
+            true
+
+        errorText.text =
+            message
+
+        username.requestFocus()
     }
 
     override fun onAttachedToWindow() {
@@ -382,58 +697,61 @@ class LoginView(
         event: KeyEvent
     ): Boolean {
 
-        if (
-            keyCode ==
-            KeyEvent.KEYCODE_DPAD_DOWN
-        ) {
+        when (keyCode) {
 
-            if (username.hasFocus()) {
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
 
-                password.requestFocus()
+                if (
+                    username.hasFocus()
+                ) {
 
-                return true
+                    password.requestFocus()
+
+                    return true
+                }
+
+                if (
+                    password.hasFocus()
+                ) {
+
+                    loginButton.requestFocus()
+
+                    return true
+                }
             }
 
-            if (password.hasFocus()) {
+            KeyEvent.KEYCODE_DPAD_UP -> {
 
-                loginButton.requestFocus()
+                if (
+                    loginButton.hasFocus()
+                ) {
 
-                return true
+                    password.requestFocus()
+
+                    return true
+                }
+
+                if (
+                    password.hasFocus()
+                ) {
+
+                    username.requestFocus()
+
+                    return true
+                }
             }
-        }
 
-        if (
-            keyCode ==
-            KeyEvent.KEYCODE_DPAD_UP
-        ) {
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
 
-            if (loginButton.hasFocus()) {
+                if (
+                    loginButton.hasFocus()
+                ) {
 
-                password.requestFocus()
+                    loginButton.performClick()
 
-                return true
-            }
-
-            if (password.hasFocus()) {
-
-                username.requestFocus()
-
-                return true
-            }
-        }
-
-        if (
-            keyCode ==
-            KeyEvent.KEYCODE_DPAD_CENTER ||
-            keyCode ==
-            KeyEvent.KEYCODE_ENTER
-        ) {
-
-            if (loginButton.hasFocus()) {
-
-                loginButton.performClick()
-
-                return true
+                    return true
+                }
             }
         }
 
@@ -446,9 +764,9 @@ class LoginView(
     private fun roundedBackground(
         fill: Int,
         stroke: Int
-    ): android.graphics.drawable.GradientDrawable {
+    ): GradientDrawable {
 
-        return android.graphics.drawable.GradientDrawable().apply {
+        return GradientDrawable().apply {
 
             setColor(fill)
 
@@ -462,12 +780,14 @@ class LoginView(
         }
     }
 
-    private fun dp(value: Int): Int {
+    private fun dp(
+        value: Int
+    ): Int {
 
         return (
-                value *
-                        resources.displayMetrics.density
-                ).toInt()
+            value *
+                    resources.displayMetrics.density
+            ).toInt()
     }
 }
 
@@ -495,7 +815,6 @@ class LoginBackground(
         val h =
             height.toFloat()
 
-        // Fondo
         canvas.drawColor(
             Color.rgb(
                 2,
@@ -504,7 +823,6 @@ class LoginBackground(
             )
         )
 
-        // Luz superior
         paint.color =
             Color.rgb(
                 4,
@@ -519,7 +837,6 @@ class LoginBackground(
             paint
         )
 
-        // Luz inferior
         paint.color =
             Color.rgb(
                 3,
@@ -533,10 +850,6 @@ class LoginBackground(
             w * 0.40f,
             paint
         )
-
-        // =====================================================
-        // LOGO
-        // =====================================================
 
         paint.color =
             Color.WHITE
@@ -613,11 +926,12 @@ class LoginBackground(
 
 
 // =============================================================
-// HOME VIEW
+// HOME
 // =============================================================
 
 class HomeView(
-    context: Context
+    context: Context,
+    private val session: XtreamSession
 ) : View(context) {
 
     private val paint =
@@ -685,7 +999,7 @@ class HomeView(
         )
 
     // =========================================================
-    // MÉTRICAS RESPONSIVE
+    // RESPONSIVE
     // =========================================================
 
     private val sidebarWidth: Float
@@ -745,15 +1059,10 @@ class HomeView(
         )
 
         drawBackground(canvas)
-
         drawSidebar(canvas)
-
         drawHeader(canvas)
-
         drawHero(canvas)
-
         drawLiveSection(canvas)
-
         drawMoviesSection(canvas)
     }
 
@@ -853,7 +1162,6 @@ class HomeView(
             paint
         )
 
-        // LOGO
         paint.color =
             Color.WHITE
 
@@ -1082,9 +1390,9 @@ class HomeView(
         val heroFocused =
             focusZone == 0
 
-        // =====================================================
+        // -----------------------------------------------------
         // FONDO
-        // =====================================================
+        // -----------------------------------------------------
 
         paint.style =
             Paint.Style.FILL
@@ -1108,9 +1416,9 @@ class HomeView(
             paint
         )
 
-        // =====================================================
+        // -----------------------------------------------------
         // VISUAL DERECHA
-        // =====================================================
+        // -----------------------------------------------------
 
         paint.color =
             Color.rgb(
@@ -1153,9 +1461,9 @@ class HomeView(
             paint
         )
 
-        // =====================================================
+        // -----------------------------------------------------
         // ELEMENTOS CINEMATOGRÁFICOS
-        // =====================================================
+        // -----------------------------------------------------
 
         paint.color =
             Color.rgb(
@@ -1199,9 +1507,9 @@ class HomeView(
             paint
         )
 
-        // =====================================================
+        // -----------------------------------------------------
         // PLAY
-        // =====================================================
+        // -----------------------------------------------------
 
         paint.color =
             Color.argb(
@@ -1252,9 +1560,9 @@ class HomeView(
             paint
         )
 
-        // =====================================================
-        // DEGRADADO OSCURO
-        // =====================================================
+        // -----------------------------------------------------
+        // DEGRADADO
+        // -----------------------------------------------------
 
         val gradientWidth =
             (right - left) * 0.65f
@@ -1262,7 +1570,9 @@ class HomeView(
         val gradientSteps =
             16
 
-        for (i in 0 until gradientSteps) {
+        for (
+            i in 0 until gradientSteps
+        ) {
 
             val progress =
                 i.toFloat() /
@@ -1270,9 +1580,9 @@ class HomeView(
 
             val alpha =
                 (
-                        175f *
-                                (1f - progress)
-                        )
+                    175f *
+                            (1f - progress)
+                    )
                     .toInt()
                     .coerceIn(
                         0,
@@ -1309,9 +1619,9 @@ class HomeView(
             )
         }
 
-        // =====================================================
-        // BORDE DE FOCO
-        // =====================================================
+        // -----------------------------------------------------
+        // FOCO
+        // -----------------------------------------------------
 
         if (heroFocused) {
 
@@ -1345,9 +1655,9 @@ class HomeView(
                 Paint.Style.FILL
         }
 
-        // =====================================================
+        // -----------------------------------------------------
         // TEXTO
-        // =====================================================
+        // -----------------------------------------------------
 
         paint.color =
             Color.rgb(
@@ -1405,9 +1715,9 @@ class HomeView(
             paint
         )
 
-        // =====================================================
-        // BOTÓN VER AHORA
-        // =====================================================
+        // -----------------------------------------------------
+        // BOTÓN
+        // -----------------------------------------------------
 
         val buttonLeft =
             left + 36f * scale
@@ -1416,10 +1726,12 @@ class HomeView(
             top + 175f * scale
 
         val buttonRight =
-            buttonLeft + 168f * scale
+            buttonLeft +
+                    168f * scale
 
         val buttonBottom =
-            buttonTop + 52f * scale
+            buttonTop +
+                    52f * scale
 
         paint.color =
             if (heroFocused)
@@ -1465,7 +1777,7 @@ class HomeView(
     }
 
     // =========================================================
-    // TV EN VIVO
+    // TV
     // =========================================================
 
     private fun drawLiveSection(
@@ -1539,7 +1851,8 @@ class HomeView(
             )
 
         val cardHeight =
-            finalWidth * 0.66f
+            finalWidth *
+                    0.66f
 
         channels.forEachIndexed {
                 index,
@@ -1557,8 +1870,7 @@ class HomeView(
             if (
                 x + finalWidth <
                 contentLeft ||
-                x >
-                contentRight
+                x > contentRight
             ) {
                 return@forEachIndexed
             }
@@ -1839,7 +2151,8 @@ class HomeView(
             )
 
         val cardHeight =
-            finalWidth * 1.34f
+            finalWidth *
+                    1.34f
 
         movies.forEachIndexed {
                 index,
@@ -1857,8 +2170,7 @@ class HomeView(
             if (
                 x + finalWidth <
                 contentLeft ||
-                x >
-                contentRight
+                x > contentRight
             ) {
                 return@forEachIndexed
             }
@@ -1999,13 +2311,14 @@ class HomeView(
                 val dy =
                     y - touchStartY
 
-                // SWIPE
                 if (
                     abs(dx) > 70f &&
                     abs(dx) > abs(dy)
                 ) {
 
-                    if (focusZone == 1) {
+                    if (
+                        focusZone == 1
+                    ) {
 
                         tvScroll +=
                             if (dx < 0)
@@ -2072,11 +2385,13 @@ class HomeView(
         y: Float
     ) {
 
-        // =====================================================
+        // -----------------------------------------------------
         // SIDEBAR
-        // =====================================================
+        // -----------------------------------------------------
 
-        if (x <= sidebarWidth) {
+        if (
+            x <= sidebarWidth
+        ) {
 
             val startY =
                 120f * scale
@@ -2124,9 +2439,9 @@ class HomeView(
             }
         }
 
-        // =====================================================
+        // -----------------------------------------------------
         // HERO COMPLETO
-        // =====================================================
+        // -----------------------------------------------------
 
         val heroTop =
             65f * scale
@@ -2162,9 +2477,9 @@ class HomeView(
             return
         }
 
-        // =====================================================
-        // BOTÓN VER AHORA
-        // =====================================================
+        // -----------------------------------------------------
+        // VER AHORA
+        // -----------------------------------------------------
 
         val buttonTop =
             heroTop +
@@ -2193,9 +2508,9 @@ class HomeView(
             return
         }
 
-        // =====================================================
+        // -----------------------------------------------------
         // TV
-        // =====================================================
+        // -----------------------------------------------------
 
         val liveTitle =
             heroTop +
@@ -2265,9 +2580,9 @@ class HomeView(
             }
         }
 
-        // =====================================================
+        // -----------------------------------------------------
         // PELÍCULAS
-        // =====================================================
+        // -----------------------------------------------------
 
         val movieTitle =
             liveTop +
@@ -2726,13 +3041,13 @@ class HomeView(
             1 -> {
 
                 // Próximo paso:
-                // abrir reproductor Live TV
+                // abrir Live TV real
             }
 
             2 -> {
 
                 // Próximo paso:
-                // abrir detalle VOD
+                // abrir VOD real
             }
 
             3 -> {
@@ -2764,17 +3079,14 @@ class HomeView(
                     }
 
                     3 -> {
-
                         // Buscar
                     }
 
                     4 -> {
-
                         // Favoritos
                     }
 
                     5 -> {
-
                         // Configuración
                     }
                 }
