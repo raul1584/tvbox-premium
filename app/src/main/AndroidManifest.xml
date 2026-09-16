@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permite conexión con el servidor Xtream -->
+    <!-- Permisos de Red para IPTV y ExoPlayer -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Compatibilidad con Android TV / TV Box -->
     <uses-feature
@@ -21,6 +22,7 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
+        <!-- Actividad Principal (Canvas) -->
         <activity
             android:name=".MainActivity"
             android:banner="@drawable/tv_banner"
@@ -29,7 +31,6 @@
             android:exported="true">
 
             <intent-filter>
-
                 <!-- Inicio normal de Android -->
                 <action android:name="android.intent.action.MAIN" />
 
@@ -38,10 +39,16 @@
 
                 <!-- Lanzador de teléfonos/tablets -->
                 <category android:name="android.intent.category.LAUNCHER" />
-
             </intent-filter>
-
         </activity>
+
+        <!-- Actividad del Reproductor ExoPlayer -->
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
 
     </application>
 
