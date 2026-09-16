@@ -3272,6 +3272,19 @@ class PremiumView(
     }
 
     // ========================================================
+    // D-PAD GENERAL
+    // ========================================================
+
+    fun handleKey(keyCode: Int): Boolean {
+        return when (screen) {
+            Screen.LOGIN -> handleLoginKey(keyCode)
+            Screen.HOME -> handleHomeKey(keyCode)
+            Screen.TV_CATEGORIES -> handleCategoryKey(keyCode)
+            Screen.TV_CHANNELS -> handleChannelKey(keyCode)
+        }
+    }
+
+    // ========================================================
     // BACK
     // ========================================================
 
