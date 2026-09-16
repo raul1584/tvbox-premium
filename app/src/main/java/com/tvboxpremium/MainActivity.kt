@@ -1,328 +1,36 @@
 package com.tvboxpremium
 
 import android.app.Activity
-import android.os.Bundle
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
-import android.text.InputType
-import android.view.Gravity
+import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.content.Context
-import android.widget.EditText
-import android.widget.FrameLayout
-import android.widget.TextView
-import android.graphics.drawable.GradientDrawable
+import android.widget.Toast
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import kotlin.math.abs
+import java.util.Collections
 import kotlin.math.max
 import kotlin.math.min
 
-class MainActivity : Activity() {
-
-    companion object {
-        private const val SERVER_URL =
-            "http://38.242.252.80:80"
-    }
-
-    private lateinit var root: FrameLayout
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        window.statusBarColor =
-            Color.rgb(2, 8, 16)
-
-        window.navigationBarColor =
-            Color.rgb(2, 8, 16)
-
-        root = FrameLayout(this)
-
-        setContentView(root)
-
-        showLogin()
-    }
-
-    // =========================================================
-    // LOGIN
-    // =========================================================
-
-    private fun showLogin() {
-
-        root.removeAllViews()
-
-        root.addView(
-            LoginView(
-                context = this,
-                serverUrl = SERVER_URL
-            ) { username, password ->
-
-                authenticate(
-                    username,
-                    password
-                )
-            }
-        )
-    }
-
-    // =========================================================
-    // AUTENTICACIÓN XTREAM
-    // =========================================================
-
-    private fun authenticate(
-        username: String,
-        password: String
-    ) {
-
-        Thread {
-
-            var connection:
-                    HttpURLConnection? = null
-
-            try {
-
-                val encodedUser =
-                    URLEncoder.encode(
-                        username,
-                        "UTF-8"
-                    )
-
-                val encodedPassword =
-                    URLEncoder.encode(
-                        password,
-                        "UTF-8"
-                    )
-
-                val apiUrl =
-                    "$SERVER_URL/player_api.php" +
-                            "?username=$encodedUser" +
-                            "&password=$encodedPassword"
-
-                val url =
-                    URL(apiUrl)
-
-                connection =
-                    url.openConnection()
-                            as HttpURLConnection
-
-                connection.requestMethod =
-                    "GET"
-
-                connection.connectTimeout =
-                    10000
-
-                connection.readTimeout =
-                    10000
-
-                connection.instanceFollowRedirects =
-                    true
-
-                val responseCode =
-                    connection.responseCode
-
-                if (
-                    responseCode !in
-                    200..299
-                ) {
-
-                    runOnUiThread {
-
-                        showLoginError(
-                            "No se pudo conectar al servidor."
-                        )
-                    }
-
-                    return@Thread
-                }
-
-                val response =
-                    connection.inputStream
-                        .bufferedReader()
-                        .use {
-                            it.readText()
-                        }
-
-                val json =
-                    JSONObject(response)
-
-                val userInfo =
-                    json.optJSONObject(
-                        "user_info"
-                    )
-
-                if (userInfo == null) {
-
-                    runOnUiThread {
-
-                        showLoginError(
-                            "Respuesta inválida del servidor."
-                        )
-                    }
-
-                    return@Thread
-                }
-
-                val auth =
-                    userInfo.optString(
-                        "auth",
-                        "0"
-                    )
-
-                if (
-                    auth == "1" ||
-                    auth.equals(
-                        "true",
-                        ignoreCase = true
-                    )
-                ) {
-
-                    val server =
-                        XtreamSession(
-                            serverUrl = SERVER_URL,
-                            username = username,
-                            password = password
-                        )
-
-                    runOnUiThread {
-
-                        hideKeyboard()
-
-                        showHome(
-                            server
-                        )
-                    }
-
-                } else {
-
-                    val status =
-                        userInfo.optString(
-                            "status",
-                            ""
-                        )
-
-                    runOnUiThread {
-
-                        if (
-                            status.isNotEmpty()
-                        ) {
-
-                            showLoginError(
-                                "Acceso rechazado: $status"
-                            )
-
-                        } else {
-
-                            showLoginError(
-                                "Usuario o contraseña incorrectos."
-                            )
-                        }
-                    }
-                }
-
-            } catch (e: Exception) {
-
-                runOnUiThread {
-
-                    showLoginError(
-                        "Error de conexión: ${e.message ?: "servidor no disponible"}"
-                    )
-                }
-
-            } finally {
-
-                connection?.disconnect()
-            }
-
-        }.start()
-    }
-
-    // =========================================================
-    // ERROR LOGIN
-    // =========================================================
-
-    private fun showLoginError(
-        message: String
-    ) {
-
-        val view =
-            root.getChildAt(0)
-
-        if (
-            view is LoginView
-        ) {
-
-            view.showError(
-                message
-            )
-        }
-    }
-
-    // =========================================================
-    // HOME
-    // =========================================================
-
-    private fun showHome(
-        session: XtreamSession
-    ) {
-
-        root.removeAllViews()
-
-        root.addView(
-            HomeView(
-                context = this,
-                session = session
-            )
-        )
-    }
-
-    private fun hideKeyboard() {
-
-        val imm =
-            getSystemService(
-                Context.INPUT_METHOD_SERVICE
-            ) as InputMethodManager
-
-        imm.hideSoftInputFromWindow(
-            root.windowToken,
-            0
-        )
-    }
-
-    override fun onBackPressed() {
-
-        if (
-            root.childCount > 0 &&
-            root.getChildAt(0) is HomeView
-        ) {
-
-            showLogin()
-
-        } else {
-
-            super.onBackPressed()
-        }
-    }
-}
-
-
-// =============================================================
-// SESIÓN XTREAM Y MODELOS TV
-// =============================================================
-
-data class XtreamSession(
-    val serverUrl: String,
-    val username: String,
-    val password: String
-)
+// ============================================================
+// MODELOS
+// ============================================================
 
 data class LiveCategory(
     val categoryId: String,
@@ -338,858 +46,1268 @@ data class LiveChannel(
     val extension: String
 )
 
+// ============================================================
+// SESION XTREAM
+// ============================================================
 
-// =============================================================
-// LOGIN VIEW
-// =============================================================
+data class XtreamSession(
+    val serverUrl: String,
+    val username: String,
+    val password: String
+)
 
-class LoginView(
-    context: Context,
-    private val serverUrl: String,
-    private val onLogin:
-        (String, String) -> Unit
-) : FrameLayout(context) {
+// ============================================================
+// PANTALLAS
+// ============================================================
 
-    private val background =
-        LoginBackground(context)
+enum class Screen {
+    LOGIN,
+    HOME,
+    TV_CATEGORIES,
+    TV_CHANNELS
+}
 
-    private val username =
-        EditText(context)
+// ============================================================
+// ACTIVITY
+// ============================================================
 
-    private val password =
-        EditText(context)
+class MainActivity : Activity() {
 
-    private val loginButton =
-        TextView(context)
+    private lateinit var appView: PremiumView
 
-    private val errorText =
-        TextView(context)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        window.setBackgroundDrawableResource(android.R.color.black)
+
+        appView = PremiumView(this)
+        setContentView(appView)
+    }
+
+    override fun onBackPressed() {
+
+        if (!appView.handleBack()) {
+            super.onBackPressed()
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+
+        if (appView.handleKey(keyCode)) {
+            return true
+        }
+
+        return super.onKeyDown(keyCode, event)
+    }
+}
+
+// ============================================================
+// VISTA PRINCIPAL CANVAS
+// ============================================================
+
+class PremiumView(
+    private val context: Context
+) : View(context) {
+
+    // --------------------------------------------------------
+    // COLORES
+    // --------------------------------------------------------
+
+    private val backgroundColor = Color.rgb(8, 10, 15)
+    private val surfaceColor = Color.rgb(17, 20, 28)
+    private val surfaceLight = Color.rgb(27, 31, 42)
+    private val textColor = Color.WHITE
+    private val secondaryText = Color.rgb(170, 176, 190)
+    private val accentColor = Color.rgb(220, 30, 70)
+    private val accentSoft = Color.rgb(150, 25, 55)
+    private val selectedBorder = Color.WHITE
+
+    // --------------------------------------------------------
+    // PAINTS
+    // --------------------------------------------------------
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // --------------------------------------------------------
+    // SESION
+    // --------------------------------------------------------
+
+    private var session: XtreamSession? = null
+
+    // --------------------------------------------------------
+    // ESTADO
+    // --------------------------------------------------------
+
+    private var screen = Screen.LOGIN
+
+    private var selectedSection = 0
+
+    private var selectedCategoryIndex = 0
+    private var selectedChannelIndex = 0
+
+    private var selectedCategoryId = ""
+    private var selectedCategoryName = ""
+
+    private var categoryChannels: List<LiveChannel> = emptyList()
+
+    // --------------------------------------------------------
+    // DATOS REALES TV
+    // --------------------------------------------------------
+
+    private var liveCategories: List<LiveCategory> = emptyList()
+    private var liveChannels: List<LiveChannel> = emptyList()
+
+    // --------------------------------------------------------
+    // LOGIN
+    // --------------------------------------------------------
+
+    private var loginServer = ""
+    private var loginUser = ""
+    private var loginPassword = ""
+
+    private var loginField = 0
+
+    private var loginLoading = false
+    private var loginError = ""
+
+    // --------------------------------------------------------
+    // TOUCH
+    // --------------------------------------------------------
+
+    private var downX = 0f
+    private var downY = 0f
+
+    private var lastTouchTime = 0L
+
+    // --------------------------------------------------------
+    // CACHE IMAGENES
+    // --------------------------------------------------------
+
+    private val bitmapCache =
+        Collections.synchronizedMap(mutableMapOf<String, Bitmap>())
+
+    private val loadingImages =
+        Collections.synchronizedSet(mutableSetOf<String>())
+
+    // --------------------------------------------------------
+    // CONSTRUCTOR
+    // --------------------------------------------------------
 
     init {
 
-        setWillNotDraw(false)
+        isFocusable = true
+        isFocusableInTouchMode = true
 
-        addView(
-            background,
-            LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT
-            )
-        )
+        requestFocus()
 
-        createLogin()
+        paint.isAntiAlias = true
+        textPaint.isAntiAlias = true
     }
 
-    private fun createLogin() {
+    // ========================================================
+    // DRAW
+    // ========================================================
 
-        // =====================================================
-        // SERVIDOR
-        // =====================================================
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
 
-        val serverText =
-            TextView(context)
+        canvas.drawColor(backgroundColor)
 
-        serverText.text =
-            serverUrl
+        when (screen) {
 
-        serverText.gravity =
-            Gravity.CENTER
+            Screen.LOGIN -> {
+                drawLogin(canvas)
+            }
 
-        serverText.setTextColor(
-            Color.rgb(
-                90,
-                150,
-                205
-            )
-        )
+            Screen.HOME -> {
+                drawHome(canvas)
+            }
 
-        serverText.textSize =
-            12f
+            Screen.TV_CATEGORIES -> {
+                drawTvCategories(canvas)
+            }
 
-        val serverParams =
-            LayoutParams(
-                dp(450),
-                dp(35)
-            )
+            Screen.TV_CHANNELS -> {
+                drawTvChannels(canvas)
+            }
+        }
+    }
 
-        serverParams.gravity =
-            Gravity.CENTER
+    // ========================================================
+    // LOGIN
+    // ========================================================
 
-        serverParams.topMargin =
-            dp(-125)
+    private fun drawLogin(canvas: Canvas) {
 
-        addView(
-            serverText,
-            serverParams
-        )
+        val w = width.toFloat()
+        val h = height.toFloat()
 
-        // =====================================================
-        // USUARIO
-        // =====================================================
+        drawBackgroundGradient(canvas)
 
-        username.setSingleLine(true)
-
-        username.hint =
-            "Usuario"
-
-        username.setTextColor(
-            Color.WHITE
-        )
-
-        username.setHintTextColor(
-            Color.rgb(
-                130,
-                150,
-                170
-            )
-        )
-
-        username.textSize =
-            17f
-
-        username.setPadding(
-            dp(22),
-            0,
-            dp(22),
-            0
-        )
-
-        username.background =
-            roundedBackground(
-                Color.rgb(
-                    10,
-                    28,
-                    47
-                ),
-                Color.rgb(
-                    30,
-                    75,
-                    110
-                )
-            )
-
-        val userParams =
-            LayoutParams(
-                dp(390),
-                dp(58)
-            )
-
-        userParams.gravity =
-            Gravity.CENTER
-
-        userParams.topMargin =
-            dp(-55)
-
-        addView(
-            username,
-            userParams
-        )
-
-        // =====================================================
-        // CONTRASEÑA
-        // =====================================================
-
-        password.setSingleLine(true)
-
-        password.hint =
-            "Contraseña"
-
-        password.setTextColor(
-            Color.WHITE
-        )
-
-        password.setHintTextColor(
-            Color.rgb(
-                130,
-                150,
-                170
-            )
-        )
-
-        password.textSize =
-            17f
-
-        password.setPadding(
-            dp(22),
-            0,
-            dp(22),
-            0
-        )
-
-        password.inputType =
-            InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_VARIATION_PASSWORD
-
-        password.background =
-            roundedBackground(
-                Color.rgb(
-                    10,
-                    28,
-                    47
-                ),
-                Color.rgb(
-                    30,
-                    75,
-                    110
-                )
-            )
-
-        val passParams =
-            LayoutParams(
-                dp(390),
-                dp(58)
-            )
-
-        passParams.gravity =
-            Gravity.CENTER
-
-        passParams.topMargin =
-            dp(15)
-
-        addView(
-            password,
-            passParams
-        )
-
-        // =====================================================
-        // BOTÓN
-        // =====================================================
-
-        loginButton.text =
-            "INICIAR SESIÓN"
-
-        loginButton.gravity =
-            Gravity.CENTER
-
-        loginButton.setTextColor(
-            Color.WHITE
-        )
-
-        loginButton.textSize =
-            16f
-
-        loginButton.setTypeface(
+        // Logo
+        textPaint.typeface = Typeface.create(
             Typeface.DEFAULT,
             Typeface.BOLD
         )
 
-        loginButton.isFocusable =
-            true
-
-        loginButton.isClickable =
-            true
-
-        loginButton.background =
-            roundedBackground(
-                Color.rgb(
-                    15,
-                    115,
-                    225
-                ),
-                Color.rgb(
-                    70,
-                    175,
-                    255
-                )
-            )
-
-        val loginParams =
-            LayoutParams(
-                dp(390),
-                dp(58)
-            )
-
-        loginParams.gravity =
-            Gravity.CENTER
-
-        loginParams.topMargin =
-            dp(100)
-
-        addView(
-            loginButton,
-            loginParams
-        )
-
-        loginButton.setOnClickListener {
-
-            val user =
-                username.text
-                    .toString()
-                    .trim()
-
-            val pass =
-                password.text
-                    .toString()
-
-            if (
-                user.isEmpty() ||
-                pass.isEmpty()
-            ) {
-
-                showError(
-                    "Ingresa usuario y contraseña."
-                )
-
-                return@setOnClickListener
-            }
-
-            loginButton.text =
-                "CONECTANDO..."
-
-            loginButton.isEnabled =
-                false
-
-            errorText.text = ""
-
-            onLogin(
-                user,
-                pass
-            )
-        }
-
-        // =====================================================
-        // ERROR
-        // =====================================================
-
-        errorText.gravity =
-            Gravity.CENTER
-
-        errorText.setTextColor(
-            Color.rgb(
-                255,
-                105,
-                105
-            )
-        )
-
-        errorText.textSize =
-            13f
-
-        val errorParams =
-            LayoutParams(
-                dp(500),
-                dp(45)
-            )
-
-        errorParams.gravity =
-            Gravity.CENTER
-
-        errorParams.topMargin =
-            dp(165)
-
-        addView(
-            errorText,
-            errorParams
-        )
-    }
-
-    fun showError(
-        message: String
-    ) {
-
-        loginButton.text =
-            "INICIAR SESIÓN"
-
-        loginButton.isEnabled =
-            true
-
-        errorText.text =
-            message
-
-        username.requestFocus()
-    }
-
-    override fun onAttachedToWindow() {
-
-        super.onAttachedToWindow()
-
-        username.requestFocus()
-    }
-
-    override fun onKeyDown(
-        keyCode: Int,
-        event: KeyEvent
-    ): Boolean {
-
-        when (keyCode) {
-
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-
-                if (
-                    username.hasFocus()
-                ) {
-
-                    password.requestFocus()
-
-                    return true
-                }
-
-                if (
-                    password.hasFocus()
-                ) {
-
-                    loginButton.requestFocus()
-
-                    return true
-                }
-            }
-
-            KeyEvent.KEYCODE_DPAD_UP -> {
-
-                if (
-                    loginButton.hasFocus()
-                ) {
-
-                    password.requestFocus()
-
-                    return true
-                }
-
-                if (
-                    password.hasFocus()
-                ) {
-
-                    username.requestFocus()
-
-                    return true
-                }
-            }
-
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER -> {
-
-                if (
-                    loginButton.hasFocus()
-                ) {
-
-                    loginButton.performClick()
-
-                    return true
-                }
-            }
-        }
-
-        return super.onKeyDown(
-            keyCode,
-            event
-        )
-    }
-
-    private fun roundedBackground(
-        fill: Int,
-        stroke: Int
-    ): GradientDrawable {
-
-        return GradientDrawable().apply {
-
-            setColor(fill)
-
-            cornerRadius =
-                dp(12).toFloat()
-
-            setStroke(
-                dp(1),
-                stroke
-            )
-        }
-    }
-
-    private fun dp(
-        value: Int
-    ): Int {
-
-        return (
-            value *
-                    resources.displayMetrics.density
-            ).toInt()
-    }
-}
-
-
-// =============================================================
-// LOGIN BACKGROUND
-// =============================================================
-
-class LoginBackground(
-    context: Context
-) : View(context) {
-
-    private val paint =
-        Paint(Paint.ANTI_ALIAS_FLAG)
-
-    override fun onDraw(
-        canvas: Canvas
-    ) {
-
-        super.onDraw(canvas)
-
-        val w =
-            width.toFloat()
-
-        val h =
-            height.toFloat()
-
-        canvas.drawColor(
-            Color.rgb(
-                2,
-                9,
-                18
-            )
-        )
-
-        paint.color =
-            Color.rgb(
-                4,
-                29,
-                52
-            )
-
-        canvas.drawCircle(
-            w * 0.82f,
-            h * 0.20f,
-            w * 0.35f,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                3,
-                20,
-                38
-            )
-
-        canvas.drawCircle(
-            w * 0.18f,
-            h * 0.90f,
-            w * 0.40f,
-            paint
-        )
-
-        paint.color =
-            Color.WHITE
-
-        paint.textAlign =
-            Paint.Align.CENTER
-
-        paint.textSize =
-            min(
-                w * 0.055f,
-                58f
-            )
-
-        paint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
+        textPaint.textSize = dp(42f)
+        textPaint.color = Color.WHITE
+        textPaint.textAlign = Paint.Align.CENTER
 
         canvas.drawText(
-            "▶ TVBOX",
+            "TVBOX",
             w / 2f,
-            h * 0.29f,
-            paint
+            dp(110f),
+            textPaint
         )
 
-        paint.color =
-            Color.rgb(
-                55,
-                165,
-                255
-            )
-
-        paint.textSize =
-            min(
-                w * 0.022f,
-                22f
-            )
-
-        paint.typeface =
-            Typeface.DEFAULT
+        textPaint.textSize = dp(16f)
+        textPaint.color = secondaryText
 
         canvas.drawText(
             "PREMIUM",
             w / 2f,
-            h * 0.34f,
+            dp(138f),
+            textPaint
+        )
+
+        val boxWidth = min(dp(520f), w - dp(60f))
+        val boxLeft = (w - boxWidth) / 2f
+        val boxTop = dp(180f)
+
+        drawRoundedRect(
+            canvas,
+            boxLeft,
+            boxTop,
+            boxLeft + boxWidth,
+            boxTop + dp(350f),
+            dp(20f),
+            surfaceColor
+        )
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = dp(22f)
+        textPaint.color = Color.WHITE
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+
+        canvas.drawText(
+            "Iniciar sesión",
+            boxLeft + dp(30f),
+            boxTop + dp(45f),
+            textPaint
+        )
+
+        drawLoginField(
+            canvas,
+            boxLeft + dp(30f),
+            boxTop + dp(75f),
+            boxWidth - dp(60f),
+            "Servidor",
+            loginServer,
+            loginField == 0
+        )
+
+        drawLoginField(
+            canvas,
+            boxLeft + dp(30f),
+            boxTop + dp(140f),
+            boxWidth - dp(60f),
+            "Usuario",
+            loginUser,
+            loginField == 1
+        )
+
+        drawLoginField(
+            canvas,
+            boxLeft + dp(30f),
+            boxTop + dp(205f),
+            boxWidth - dp(60f),
+            "Contraseña",
+            if (loginPassword.isEmpty()) "" else "••••••••",
+            loginField == 2
+        )
+
+        val buttonTop = boxTop + dp(285f)
+
+        drawRoundedRect(
+            canvas,
+            boxLeft + dp(30f),
+            buttonTop,
+            boxLeft + boxWidth - dp(30f),
+            buttonTop + dp(48f),
+            dp(12f),
+            accentColor
+        )
+
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(16f)
+        textPaint.color = Color.WHITE
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+
+        canvas.drawText(
+            if (loginLoading) "Conectando..." else "ENTRAR",
+            w / 2f,
+            buttonTop + dp(31f),
+            textPaint
+        )
+
+        if (loginError.isNotEmpty()) {
+
+            textPaint.textSize = dp(13f)
+            textPaint.color = Color.rgb(255, 100, 110)
+
+            canvas.drawText(
+                loginError,
+                w / 2f,
+                buttonTop + dp(75f),
+                textPaint
+            )
+        }
+    }
+
+    private fun drawLoginField(
+        canvas: Canvas,
+        left: Float,
+        top: Float,
+        width: Float,
+        label: String,
+        value: String,
+        selected: Boolean
+    ) {
+
+        val borderColor =
+            if (selected) accentColor else Color.rgb(50, 55, 68)
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = if (selected) dp(2f) else dp(1f)
+        paint.color = borderColor
+
+        canvas.drawRoundRect(
+            RectF(
+                left,
+                top,
+                left + width,
+                top + dp(52f)
+            ),
+            dp(10f),
+            dp(10f),
             paint
         )
 
-        paint.color =
-            Color.rgb(
-                190,
-                210,
-                230
+        paint.style = Paint.Style.FILL
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = dp(11f)
+        textPaint.color = secondaryText
+
+        canvas.drawText(
+            label,
+            left + dp(15f),
+            top + dp(18f),
+            textPaint
+        )
+
+        textPaint.textSize = dp(14f)
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            value,
+            left + dp(15f),
+            top + dp(40f),
+            textPaint
+        )
+    }
+
+    // ========================================================
+    // HOME
+    // ========================================================
+
+    private fun drawHome(canvas: Canvas) {
+
+        drawTopBar(canvas)
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.textSize = dp(34f)
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            "Bienvenido",
+            dp(55f),
+            dp(110f),
+            textPaint
+        )
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = dp(17f)
+        textPaint.color = secondaryText
+
+        canvas.drawText(
+            "Disfruta de tu contenido",
+            dp(55f),
+            dp(140f),
+            textPaint
+        )
+
+        // TV
+        drawHomeSection(
+            canvas,
+            0,
+            dp(55f),
+            dp(195f),
+            dp(275f),
+            dp(170f),
+            "TV",
+            "Televisión en directo",
+            "Explorar canales"
+        )
+
+        // VOD placeholder
+        drawHomeSection(
+            canvas,
+            1,
+            dp(245f),
+            dp(195f),
+            dp(465f),
+            dp(170f),
+            "PELÍCULAS",
+            "Tu catálogo VOD",
+            "Próximamente"
+        )
+
+        // Indicador inferior
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = dp(13f)
+        textPaint.color = Color.rgb(125, 130, 145)
+
+        canvas.drawText(
+            "Usa ◀ ▶ ▲ ▼ y OK para navegar",
+            dp(55f),
+            height - dp(35f),
+            textPaint
+        )
+    }
+
+    private fun drawHomeSection(
+        canvas: Canvas,
+        index: Int,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        title: String,
+        subtitle: String,
+        action: String
+    ) {
+
+        val selected = selectedSection == index
+
+        drawRoundedRect(
+            canvas,
+            left,
+            top,
+            right,
+            bottom,
+            dp(18f),
+            if (selected) surfaceLight else surfaceColor
+        )
+
+        if (selected) {
+
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = dp(3f)
+            paint.color = selectedBorder
+
+            canvas.drawRoundRect(
+                RectF(left, top, right, bottom),
+                dp(18f),
+                dp(18f),
+                paint
             )
 
-        paint.textSize =
-            min(
-                w * 0.018f,
-                18f
+            paint.style = Paint.Style.FILL
+        }
+
+        // icon
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(30f)
+        textPaint.color = if (selected) Color.WHITE else secondaryText
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+
+        canvas.drawText(
+            if (index == 0) "TV" else "▶",
+            (left + right) / 2f,
+            top + dp(55f),
+            textPaint
+        )
+
+        textPaint.textSize = dp(20f)
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            title,
+            (left + right) / 2f,
+            top + dp(95f),
+            textPaint
+        )
+
+        textPaint.textSize = dp(12f)
+        textPaint.color = secondaryText
+
+        canvas.drawText(
+            subtitle,
+            (left + right) / 2f,
+            top + dp(120f),
+            textPaint
+        )
+
+        textPaint.textSize = dp(11f)
+        textPaint.color =
+            if (selected) Color.WHITE else Color.rgb(110, 115, 130)
+
+        canvas.drawText(
+            action,
+            (left + right) / 2f,
+            top + dp(150f),
+            textPaint
+        )
+    }
+
+    // ========================================================
+    // TV CATEGORIES
+    // ========================================================
+
+    private fun drawTvCategories(canvas: Canvas) {
+
+        drawTopBar(canvas)
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.textSize = dp(32f)
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            "TV",
+            dp(50f),
+            dp(95f),
+            textPaint
+        )
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = dp(15f)
+        textPaint.color = secondaryText
+
+        val subtitle =
+            if (liveCategories.isEmpty()) {
+                "Cargando categorías..."
+            } else {
+                "${liveCategories.size} categorías disponibles"
+            }
+
+        canvas.drawText(
+            subtitle,
+            dp(50f),
+            dp(122f),
+            textPaint
+        )
+
+        if (liveCategories.isEmpty()) {
+
+            drawLoading(
+                canvas,
+                width / 2f,
+                height / 2f
+            )
+
+            return
+        }
+
+        val columns = categoryColumns()
+        val cardWidth = dp(185f)
+        val cardHeight = dp(145f)
+        val gap = dp(18f)
+
+        val startX = dp(50f)
+        val startY = dp(155f)
+
+        liveCategories.forEachIndexed { index, category ->
+
+            val row = index / columns
+            val col = index % columns
+
+            val left =
+                startX + col * (cardWidth + gap)
+
+            val top =
+                startY + row * (cardHeight + gap)
+
+            if (top > height - dp(20f)) {
+                return@forEachIndexed
+            }
+
+            val selected =
+                index == selectedCategoryIndex
+
+            drawCategoryCard(
+                canvas,
+                category,
+                left,
+                top,
+                cardWidth,
+                cardHeight,
+                selected
+            )
+        }
+    }
+
+    private fun drawCategoryCard(
+        canvas: Canvas,
+        category: LiveCategory,
+        left: Float,
+        top: Float,
+        cardWidth: Float,
+        cardHeight: Float,
+        selected: Boolean
+    ) {
+
+        drawRoundedRect(
+            canvas,
+            left,
+            top,
+            left + cardWidth,
+            top + cardHeight,
+            dp(14f),
+            if (selected) surfaceLight else surfaceColor
+        )
+
+        if (selected) {
+
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = dp(3f)
+            paint.color = selectedBorder
+
+            canvas.drawRoundRect(
+                RectF(
+                    left,
+                    top,
+                    left + cardWidth,
+                    top + cardHeight
+                ),
+                dp(14f),
+                dp(14f),
+                paint
+            )
+
+            paint.style = Paint.Style.FILL
+        }
+
+        val channels =
+            channelsForCategory(category.categoryId)
+
+        val logos =
+            channels
+                .map { it.icon }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .take(4)
+
+        drawCategoryMosaic(
+            canvas,
+            logos,
+            left + dp(8f),
+            top + dp(8f),
+            cardWidth - dp(16f),
+            dp(92f),
+            category.categoryName
+        )
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.textSize = dp(14f)
+        textPaint.color = Color.WHITE
+
+        val name =
+            truncateText(
+                category.categoryName,
+                24
             )
 
         canvas.drawText(
-            "Inicia sesión para continuar",
-            w / 2f,
-            h * 0.405f,
+            name,
+            left + dp(12f),
+            top + cardHeight - dp(18f),
+            textPaint
+        )
+    }
+
+    // ========================================================
+    // MOSAICO DE LOGOS DE CATEGORIA
+    // ========================================================
+
+    private fun drawCategoryMosaic(
+        canvas: Canvas,
+        urls: List<String>,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        categoryName: String
+    ) {
+
+        if (urls.isEmpty()) {
+
+            drawCategoryPlaceholder(
+                canvas,
+                left,
+                top,
+                width,
+                height,
+                categoryName
+            )
+
+            return
+        }
+
+        val halfW = width / 2f
+        val halfH = height / 2f
+
+        val rects = listOf(
+            RectF(
+                left,
+                top,
+                left + halfW - dp(2f),
+                top + halfH - dp(2f)
+            ),
+            RectF(
+                left + halfW + dp(2f),
+                top,
+                left + width,
+                top + halfH - dp(2f)
+            ),
+            RectF(
+                left,
+                top + halfH + dp(2f),
+                left + halfW - dp(2f),
+                top + height
+            ),
+            RectF(
+                left + halfW + dp(2f),
+                top + halfH + dp(2f),
+                left + width,
+                top + height
+            )
+        )
+
+        urls.take(4).forEachIndexed { index, url ->
+
+            requestImage(url)
+
+            val bitmap =
+                bitmapCache[url]
+
+            drawImageOrPlaceholder(
+                canvas,
+                bitmap,
+                rects[index],
+                categoryName
+            )
+        }
+
+        if (urls.size < 4) {
+
+            for (index in urls.size until 4) {
+
+                drawCategoryPlaceholder(
+                    canvas,
+                    rects[index].left,
+                    rects[index].top,
+                    rects[index].width(),
+                    rects[index].height(),
+                    categoryName
+                )
+            }
+        }
+    }
+
+    private fun drawCategoryPlaceholder(
+        canvas: Canvas,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        title: String
+    ) {
+
+        paint.shader = LinearGradient(
+            left,
+            top,
+            left + width,
+            top + height,
+            Color.rgb(35, 38, 52),
+            Color.rgb(17, 19, 27),
+            Shader.TileMode.CLAMP
+        )
+
+        canvas.drawRoundRect(
+            RectF(
+                left,
+                top,
+                left + width,
+                top + height
+            ),
+            dp(8f),
+            dp(8f),
             paint
         )
 
-        paint.textAlign =
-            Paint.Align.LEFT
-    }
-}
+        paint.shader = null
 
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(20f)
+        textPaint.color = Color.WHITE
+        textPaint.typeface = Typeface.DEFAULT_BOLD
 
-// =============================================================
-// HOME
-// =============================================================
-
-class HomeView(
-    context: Context,
-    private val session: XtreamSession
-) : View(context) {
-
-    private val paint =
-        Paint(Paint.ANTI_ALIAS_FLAG)
-
-    init {
-        loadLiveData()
+        canvas.drawText(
+            initials(title),
+            left + width / 2f,
+            top + height / 2f + dp(7f),
+            textPaint
+        )
     }
 
-    // =========================================================
-    // NAVEGACIÓN
-    // =========================================================
+    // ========================================================
+    // TV CHANNELS
+    // ========================================================
 
-    private var selectedSection = 0
+    private fun drawTvChannels(canvas: Canvas) {
 
-    /*
-        0 = Hero
-        1 = TV
-        2 = Películas
-        3 = menú lateral
-    */
+        drawTopBar(canvas)
 
-    private var focusZone = 0
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.textSize = dp(30f)
+        textPaint.color = Color.WHITE
 
-    private var selectedCard = 0
-
-    private var touchStartX = 0f
-    private var touchStartY = 0f
-
-    private var tvScroll = 0f
-    private var movieScroll = 0f
-
-    // =========================================================
-    // DATOS TV REALES Y DEMO PELÍCULAS
-    // =========================================================
-
-    private val sections =
-        arrayOf(
-            "Inicio",
-            "TV",
-            "Películas",
-            "Buscar",
-            "Favoritos",
-            "Configuración"
+        canvas.drawText(
+            selectedCategoryName,
+            dp(50f),
+            dp(92f),
+            textPaint
         )
 
-    private val channels =
-        mutableListOf<String>()
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = dp(14f)
+        textPaint.color = secondaryText
 
-    private val liveChannels =
-        mutableListOf<LiveChannel>()
-
-    private val liveCategories =
-        mutableListOf<LiveCategory>()
-
-    private var loadingLive = true
-    private var liveError = ""
-
-    private val movies =
-        arrayOf(
-            "Dune",
-            "Deadpool",
-            "John Wick",
-            "Oppenheimer",
-            "Top Gun",
-            "Batman",
-            "Interstellar",
-            "Avatar"
+        canvas.drawText(
+            "${categoryChannels.size} canales",
+            dp(50f),
+            dp(118f),
+            textPaint
         )
 
-    // =========================================================
-    // CARGA TV REAL DESDE XTREAM
-    // =========================================================
+        if (categoryChannels.isEmpty()) {
 
-    private fun loadLiveData() {
+            drawEmptyState(
+                canvas,
+                "No hay canales en esta categoría"
+            )
 
-        loadingLive = true
-        liveError = ""
+            return
+        }
 
+        val columns = channelColumns()
+
+        val cardWidth = dp(205f)
+        val cardHeight = dp(135f)
+        val gap = dp(18f)
+
+        val startX = dp(50f)
+        val startY = dp(150f)
+
+        categoryChannels.forEachIndexed { index, channel ->
+
+            val row = index / columns
+            val col = index % columns
+
+            val left =
+                startX + col * (cardWidth + gap)
+
+            val top =
+                startY + row * (cardHeight + gap)
+
+            if (top > height - dp(15f)) {
+                return@forEachIndexed
+            }
+
+            val selected =
+                index == selectedChannelIndex
+
+            drawChannelCard(
+                canvas,
+                channel,
+                left,
+                top,
+                cardWidth,
+                cardHeight,
+                selected
+            )
+        }
+    }
+
+    private fun drawChannelCard(
+        canvas: Canvas,
+        channel: LiveChannel,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        selected: Boolean
+    ) {
+
+        drawRoundedRect(
+            canvas,
+            left,
+            top,
+            left + width,
+            top + height,
+            dp(14f),
+            if (selected) surfaceLight else surfaceColor
+        )
+
+        if (selected) {
+
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = dp(3f)
+            paint.color = selectedBorder
+
+            canvas.drawRoundRect(
+                RectF(
+                    left,
+                    top,
+                    left + width,
+                    top + height
+                ),
+                dp(14f),
+                dp(14f),
+                paint
+            )
+
+            paint.style = Paint.Style.FILL
+        }
+
+        val logoRect = RectF(
+            left + dp(12f),
+            top + dp(12f),
+            left + dp(82f),
+            top + dp(82f)
+        )
+
+        if (channel.icon.isNotBlank()) {
+
+            requestImage(channel.icon)
+
+            drawImageOrPlaceholder(
+                canvas,
+                bitmapCache[channel.icon],
+                logoRect,
+                channel.name
+            )
+
+        } else {
+
+            drawChannelPlaceholder(
+                canvas,
+                logoRect,
+                channel.name
+            )
+        }
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.textSize = dp(14f)
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            truncateText(channel.name, 25),
+            left + dp(95f),
+            top + dp(40f),
+            textPaint
+        )
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = dp(11f)
+        textPaint.color = secondaryText
+
+        canvas.drawText(
+            if (channel.streamType.isNotBlank()) {
+                channel.streamType.uppercase()
+            } else {
+                "TV"
+            },
+            left + dp(95f),
+            top + dp(61f),
+            textPaint
+        )
+    }
+
+    private fun drawChannelPlaceholder(
+        canvas: Canvas,
+        rect: RectF,
+        name: String
+    ) {
+
+        paint.shader = LinearGradient(
+            rect.left,
+            rect.top,
+            rect.right,
+            rect.bottom,
+            accentSoft,
+            Color.rgb(30, 33, 45),
+            Shader.TileMode.CLAMP
+        )
+
+        canvas.drawRoundRect(
+            rect,
+            dp(10f),
+            dp(10f),
+            paint
+        )
+
+        paint.shader = null
+
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(18f)
+        textPaint.color = Color.WHITE
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+
+        canvas.drawText(
+            initials(name),
+            rect.centerX(),
+            rect.centerY() + dp(6f),
+            textPaint
+        )
+    }
+
+    // ========================================================
+    // TOP BAR
+    // ========================================================
+
+    private fun drawTopBar(canvas: Canvas) {
+
+        paint.color = Color.rgb(10, 12, 18)
+
+        canvas.drawRect(
+            0f,
+            0f,
+            width.toFloat(),
+            dp(55f),
+            paint
+        )
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = dp(18f)
+        textPaint.typeface = Typeface.DEFAULT_BOLD
+        textPaint.color = Color.WHITE
+
+        canvas.drawText(
+            "TVBOX",
+            dp(28f),
+            dp(35f),
+            textPaint
+        )
+
+        textPaint.textSize = dp(11f)
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.color = accentColor
+
+        canvas.drawText(
+            "PREMIUM",
+            dp(92f),
+            dp(35f),
+            textPaint
+        )
+    }
+
+    // ========================================================
+    // NETWORK - LOGIN
+    // ========================================================
+
+    private fun performLogin() {
+
+        if (loginLoading) return
+
+        loginError = ""
+
+        val server =
+            loginServer.trim().removeSuffix("/")
+
+        val user =
+            loginUser.trim()
+
+        val password =
+            loginPassword
+
+        if (server.isEmpty()) {
+            loginError = "Ingresa el servidor"
+            invalidate()
+            return
+        }
+
+        if (user.isEmpty()) {
+            loginError = "Ingresa el usuario"
+            invalidate()
+            return
+        }
+
+        if (password.isEmpty()) {
+            loginError = "Ingresa la contraseña"
+            invalidate()
+            return
+        }
+
+        loginLoading = true
         invalidate()
 
         Thread {
 
             try {
 
-                val categoriesJson =
-                    httpGet(
-                        session.serverUrl +
-                                "/player_api.php" +
-                                "?username=" +
-                                URLEncoder.encode(
-                                    session.username,
-                                    "UTF-8"
-                                ) +
-                                "&password=" +
-                                URLEncoder.encode(
-                                    session.password,
-                                    "UTF-8"
-                                ) +
-                                "&action=get_live_categories"
-                    )
-
-                val streamsJson =
-                    httpGet(
-                        session.serverUrl +
-                                "/player_api.php" +
-                                "?username=" +
-                                URLEncoder.encode(
-                                    session.username,
-                                    "UTF-8"
-                                ) +
-                                "&password=" +
-                                URLEncoder.encode(
-                                    session.password,
-                                    "UTF-8"
-                                ) +
-                                "&action=get_live_streams"
-                    )
-
-                val categoriesArray =
-                    org.json.JSONArray(
-                        categoriesJson
-                    )
-
-                val streamsArray =
-                    org.json.JSONArray(
-                        streamsJson
-                    )
-
-                val categoriesResult =
-                    mutableListOf<LiveCategory>()
-
-                for (
-                    i in 0 until categoriesArray.length()
-                ) {
-
-                    val item =
-                        categoriesArray.optJSONObject(i)
-                            ?: continue
-
-                    categoriesResult.add(
-                        LiveCategory(
-                            categoryId =
-                                item.optString(
-                                    "category_id"
-                                ),
-                            categoryName =
-                                item.optString(
-                                    "category_name",
-                                    "Sin categoría"
-                                )
-                        )
-                    )
-                }
-
-                val streamsResult =
-                    mutableListOf<LiveChannel>()
-
-                for (
-                    i in 0 until streamsArray.length()
-                ) {
-
-                    val item =
-                        streamsArray.optJSONObject(i)
-                            ?: continue
-
-                    val streamId =
-                        item.optInt(
-                            "stream_id",
-                            -1
-                        )
-
-                    if (streamId <= 0) {
-                        continue
+                val base =
+                    if (server.startsWith("http://") ||
+                    server.startsWith("https://")) {
+                        server
+                    } else {
+                        "http://$server"
                     }
 
-                    val name =
-                        item.optString(
-                            "name",
-                            "Canal"
-                        )
+                val encodedUser =
+                    URLEncoder.encode(user, "UTF-8")
 
-                    val icon =
-                        item.optString(
-                            "stream_icon",
-                            ""
-                        )
+                val encodedPassword =
+                    URLEncoder.encode(password, "UTF-8")
 
-                    val categoryId =
-                        item.optString(
-                            "category_id",
-                            ""
-                        )
+                val apiUrl =
+                    "$base/player_api.php?username=$encodedUser&password=$encodedPassword"
 
-                    val streamType =
-                        item.optString(
-                            "stream_type",
-                            "live"
-                        )
+                val response =
+                    httpGet(apiUrl)
 
-                    val extension =
-                        item.optString(
-                            "container_extension",
-                            "ts"
-                        )
+                val json =
+                    JSONObject(response)
 
-                    streamsResult.add(
-                        LiveChannel(
-                            streamId = streamId,
-                            name = name,
-                            icon = icon,
-                            categoryId = categoryId,
-                            streamType = streamType,
-                            extension = extension
-                        )
-                    )
+                val userInfo =
+                    json.optJSONObject("user_info")
+
+                val auth =
+                    userInfo?.optInt("auth", 0) ?: 0
+
+                if (auth != 1) {
+
+                    post {
+
+                        loginLoading = false
+                        loginError = "Usuario o contraseña incorrectos"
+                        invalidate()
+                    }
+
+                    return@Thread
                 }
+
+                val newSession =
+                    XtreamSession(
+                        serverUrl = base,
+                        username = user,
+                        password = password
+                    )
+
+                session = newSession
 
                 post {
 
-                    liveCategories.clear()
-                    liveCategories.addAll(
-                        categoriesResult
+                    loginLoading = false
+                    loginError = ""
+                    screen = Screen.HOME
+                    selectedSection = 0
+                    invalidate()
+                }
+
+                loadTvData()
+
+            } catch (e: Exception) {
+
+                post {
+
+                    loginLoading = false
+                    loginError =
+                        "No se pudo conectar al servidor"
+                    invalidate()
+                }
+            }
+
+        }.start()
+    }
+
+    // ========================================================
+    // CARGAR TV
+    // ========================================================
+
+    private fun loadTvData() {
+
+        val currentSession =
+            session ?: return
+
+        Thread {
+
+            try {
+
+                val categoriesUrl =
+                    buildApiUrl(
+                        currentSession,
+                        "get_live_categories"
                     )
 
-                    liveChannels.clear()
-                    liveChannels.addAll(
-                        streamsResult
+                val streamsUrl =
+                    buildApiUrl(
+                        currentSession,
+                        "get_live_streams"
                     )
 
-                    channels.clear()
+                val categoriesResponse =
+                    httpGet(categoriesUrl)
 
-                    channels.addAll(
-                        liveChannels.map {
-                            it.name
-                        }
+                val streamsResponse =
+                    httpGet(streamsUrl)
+
+                val categories =
+                    parseLiveCategories(
+                        categoriesResponse
                     )
 
-                    loadingLive = false
-                    liveError = ""
+                val channels =
+                    parseLiveChannels(
+                        streamsResponse
+                    )
 
-                    selectedCard = 0
-                    tvScroll = 0f
+                synchronized(this) {
 
+                    liveCategories =
+                        categories
+                            .distinctBy { it.categoryId }
+                            .sortedBy {
+                                it.categoryName.lowercase()
+                            }
+
+                    liveChannels =
+                        channels
+                            .distinctBy { it.streamId }
+                            .sortedBy {
+                                it.name.lowercase()
+                            }
+                }
+
+                post {
                     invalidate()
                 }
 
@@ -1197,13 +1315,14 @@ class HomeView(
 
                 post {
 
-                    loadingLive = false
+                    if (screen == Screen.TV_CATEGORIES) {
 
-                    liveError =
-                        e.message
-                            ?: "No se pudo cargar TV"
-
-                    channels.clear()
+                        Toast.makeText(
+                            context,
+                            "No se pudieron cargar las categorías",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
 
                     invalidate()
                 }
@@ -1212,148 +1331,1148 @@ class HomeView(
         }.start()
     }
 
-    private fun httpGet(
-        requestUrl: String
+    private fun buildApiUrl(
+        currentSession: XtreamSession,
+        action: String
     ): String {
 
-        var connection:
-                HttpURLConnection? = null
+        val user =
+            URLEncoder.encode(
+                currentSession.username,
+                "UTF-8"
+            )
+
+        val password =
+            URLEncoder.encode(
+                currentSession.password,
+                "UTF-8"
+            )
+
+        return "${currentSession.serverUrl}/player_api.php" +
+                "?username=$user" +
+                "&password=$password" +
+                "&action=$action"
+    }
+
+    // ========================================================
+    // PARSE CATEGORIAS
+    // ========================================================
+
+    private fun parseLiveCategories(
+        response: String
+    ): List<LiveCategory> {
+
+        val result = mutableListOf<LiveCategory>()
+
+        val array =
+            JSONArray(response)
+
+        for (i in 0 until array.length()) {
+
+            val obj =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val id =
+                obj.optString(
+                    "category_id",
+                    ""
+                ).trim()
+
+            val name =
+                obj.optString(
+                    "category_name",
+                    ""
+                ).trim()
+
+            if (id.isNotEmpty() && name.isNotEmpty()) {
+
+                result.add(
+                    LiveCategory(
+                        categoryId = id,
+                        categoryName = name
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    // ========================================================
+    // PARSE CANALES
+    // ========================================================
+
+    private fun parseLiveChannels(
+        response: String
+    ): List<LiveChannel> {
+
+        val result = mutableListOf<LiveChannel>()
+
+        val array =
+            JSONArray(response)
+
+        for (i in 0 until array.length()) {
+
+            val obj =
+                array.optJSONObject(i)
+                    ?: continue
+
+            val streamId =
+                try {
+                    obj.optInt(
+                        "stream_id",
+                        0
+                    )
+                } catch (_: Exception) {
+                    0
+                }
+
+            val name =
+                obj.optString(
+                    "name",
+                    "Canal"
+                ).trim()
+
+            val icon =
+                obj.optString(
+                    "stream_icon",
+                    ""
+                ).trim()
+
+            val categoryId =
+                obj.optString(
+                    "category_id",
+                    ""
+                ).trim()
+
+            val streamType =
+                obj.optString(
+                    "stream_type",
+                    ""
+                ).trim()
+
+            val extension =
+                obj.optString(
+                    "container_extension",
+                    "ts"
+                ).trim()
+
+            if (streamId > 0) {
+
+                result.add(
+                    LiveChannel(
+                        streamId = streamId,
+                        name = name,
+                        icon = icon,
+                        categoryId = categoryId,
+                        streamType = streamType,
+                        extension = extension
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    // ========================================================
+    // NETWORK HTTP
+    // ========================================================
+
+    private fun httpGet(
+        urlString: String
+    ): String {
+
+        val connection =
+            URL(urlString)
+                .openConnection() as HttpURLConnection
 
         try {
 
-            val url =
-                URL(requestUrl)
-
-            connection =
-                url.openConnection()
-                        as HttpURLConnection
-
-            connection.requestMethod =
-                "GET"
-
-            connection.connectTimeout =
-                10000
-
-            connection.readTimeout =
-                15000
-
-            connection.instanceFollowRedirects =
-                true
-
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 15000
+            connection.instanceFollowRedirects = true
             connection.setRequestProperty(
                 "Accept",
                 "application/json"
             )
+            connection.setRequestProperty(
+                "User-Agent",
+                "TVBoxPremium/1.0"
+            )
 
-            val responseCode =
+            val code =
                 connection.responseCode
 
-            if (
-                responseCode !in 200..299
-            ) {
-
+            if (code !in 200..299) {
                 throw Exception(
-                    "HTTP $responseCode"
+                    "HTTP $code"
                 )
             }
 
-            return connection
-                .inputStream
-                .bufferedReader()
-                .use {
-                    it.readText()
+            val input =
+                connection.inputStream
+
+            BufferedReader(
+                InputStreamReader(input)
+            ).use { reader ->
+
+                val builder =
+                    StringBuilder()
+
+                var line: String?
+
+                while (true) {
+
+                    line =
+                        reader.readLine()
+                            ?: break
+
+                    builder.append(line)
                 }
+
+                return builder.toString()
+            }
 
         } finally {
 
-            connection?.disconnect()
+            connection.disconnect()
         }
     }
 
-    // =========================================================
-    // RESPONSIVE
-    // =========================================================
+    // ========================================================
+    // IMAGENES
+    // ========================================================
 
-    private val sidebarWidth: Float
-        get() =
-            min(
-                width * 0.19f,
-                310f
-            )
-
-    private val horizontalMargin: Float
-        get() =
-            max(
-                22f,
-                width * 0.025f
-            )
-
-    private val contentLeft: Float
-        get() =
-            sidebarWidth +
-                    horizontalMargin
-
-    private val contentRight: Float
-        get() =
-            width -
-                    horizontalMargin
-
-    private val contentWidth: Float
-        get() =
-            contentRight -
-                    contentLeft
-
-    private val scale: Float
-        get() =
-            min(
-                width / 1920f,
-                height / 1080f
-            ).coerceAtLeast(
-                0.70f
-            )
-
-    // =========================================================
-    // DRAW
-    // =========================================================
-
-    override fun onDraw(
-        canvas: Canvas
+    private fun requestImage(
+        url: String
     ) {
 
-        super.onDraw(canvas)
+        if (url.isBlank()) return
 
-        canvas.drawColor(
-            Color.rgb(
-                2,
-                9,
-                18
-            )
-        )
+        synchronized(bitmapCache) {
 
-        drawBackground(canvas)
-        drawSidebar(canvas)
-        drawHeader(canvas)
-        drawHero(canvas)
-        drawLiveSection(canvas)
-        drawMoviesSection(canvas)
+            if (bitmapCache.containsKey(url)) {
+                return
+            }
+        }
+
+        synchronized(loadingImages) {
+
+            if (loadingImages.contains(url)) {
+                return
+            }
+
+            loadingImages.add(url)
+        }
+
+        Thread {
+
+            var connection:
+                    HttpURLConnection? = null
+
+            try {
+
+                connection =
+                    URL(url)
+                        .openConnection()
+                            as HttpURLConnection
+
+                connection.connectTimeout = 8000
+                connection.readTimeout = 10000
+                connection.instanceFollowRedirects = true
+
+                connection.setRequestProperty(
+                    "User-Agent",
+                    "TVBoxPremium/1.0"
+                )
+
+                val bitmap =
+                    connection.inputStream.use {
+                        BitmapFactory.decodeStream(it)
+                    }
+
+                if (bitmap != null) {
+
+                    synchronized(bitmapCache) {
+
+                        bitmapCache[url] = bitmap
+                    }
+                }
+
+            } catch (_: Exception) {
+
+                // Imagen no disponible.
+                // Se utiliza placeholder.
+
+            } finally {
+
+                connection?.disconnect()
+
+                synchronized(loadingImages) {
+                    loadingImages.remove(url)
+                }
+
+                post {
+                    invalidate()
+                }
+            }
+
+        }.start()
     }
 
-    // =========================================================
-    // BACKGROUND
-    // =========================================================
+    // ========================================================
+    // DIBUJAR IMAGEN
+    // ========================================================
 
-    private fun drawBackground(
+    private fun drawImageOrPlaceholder(
+        canvas: Canvas,
+        bitmap: Bitmap?,
+        rect: RectF,
+        title: String
+    ) {
+
+        if (bitmap == null) {
+
+            drawCategoryPlaceholder(
+                canvas,
+                rect.left,
+                rect.top,
+                rect.width(),
+                rect.height(),
+                title
+            )
+
+            return
+        }
+
+        canvas.save()
+
+        val path =
+            Path()
+
+        path.addRoundRect(
+            rect,
+            dp(8f),
+            dp(8f),
+            Path.Direction.CW
+        )
+
+        canvas.clipPath(path)
+
+        canvas.drawBitmap(
+            bitmap,
+            null,
+            rect,
+            paint
+        )
+
+        canvas.restore()
+    }
+
+    // ========================================================
+    // CATEGORIA / CANALES
+    // ========================================================
+
+    private fun channelsForCategory(
+        categoryId: String
+    ): List<LiveChannel> {
+
+        return liveChannels.filter {
+            it.categoryId == categoryId
+        }
+    }
+
+    private fun openSelectedCategory() {
+
+        if (liveCategories.isEmpty()) return
+
+        selectedCategoryIndex =
+            selectedCategoryIndex.coerceIn(
+                0,
+                liveCategories.lastIndex
+            )
+
+        val category =
+            liveCategories[selectedCategoryIndex]
+
+        selectedCategoryId =
+            category.categoryId
+
+        selectedCategoryName =
+            category.categoryName
+
+        categoryChannels =
+            channelsForCategory(
+                category.categoryId
+            )
+                .sortedBy {
+                    it.name.lowercase()
+                }
+
+        selectedChannelIndex = 0
+
+        screen = Screen.TV_CHANNELS
+
+        invalidate()
+    }
+
+    // ========================================================
+    // NAVEGACION TECLADO / D-PAD
+    // ========================================================
+
+    fun handleKey(
+        keyCode: Int
+    ): Boolean {
+
+        when (screen) {
+
+            Screen.LOGIN -> {
+
+                return handleLoginKey(
+                    keyCode
+                )
+            }
+
+            Screen.HOME -> {
+
+                return handleHomeKey(
+                    keyCode
+                )
+            }
+
+            Screen.TV_CATEGORIES -> {
+
+                return handleCategoryKey(
+                    keyCode
+                )
+            }
+
+            Screen.TV_CHANNELS -> {
+
+                return handleChannelKey(
+                    keyCode
+                )
+            }
+        }
+    }
+
+    private fun handleLoginKey(
+        keyCode: Int
+    ): Boolean {
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_UP -> {
+
+                loginField =
+                    max(
+                        0,
+                        loginField - 1
+                    )
+
+                invalidate()
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+                loginField =
+                    min(
+                        3,
+                        loginField + 1
+                    )
+
+                invalidate()
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+
+                if (loginField == 3) {
+                    performLogin()
+                } else {
+                    loginField++
+                }
+
+                invalidate()
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun handleHomeKey(
+        keyCode: Int
+    ): Boolean {
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+
+                selectedSection =
+                    max(
+                        0,
+                        selectedSection - 1
+                    )
+
+                invalidate()
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+
+                selectedSection =
+                    min(
+                        1,
+                        selectedSection + 1
+                    )
+
+                invalidate()
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+
+                if (selectedSection == 0) {
+
+                    screen =
+                        Screen.TV_CATEGORIES
+
+                    selectedCategoryIndex = 0
+
+                    if (liveCategories.isEmpty()) {
+                        loadTvData()
+                    }
+                }
+
+                invalidate()
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun handleCategoryKey(
+        keyCode: Int
+    ): Boolean {
+
+        if (liveCategories.isEmpty()) {
+            return true
+        }
+
+        val columns =
+            categoryColumns()
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+
+                if (selectedCategoryIndex % columns > 0) {
+
+                    selectedCategoryIndex--
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+
+                if (
+                    selectedCategoryIndex <
+                    liveCategories.lastIndex
+                ) {
+
+                    selectedCategoryIndex++
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_UP -> {
+
+                val newIndex =
+                    selectedCategoryIndex - columns
+
+                if (newIndex >= 0) {
+
+                    selectedCategoryIndex =
+                        newIndex
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+                val newIndex =
+                    selectedCategoryIndex + columns
+
+                if (
+                    newIndex <=
+                    liveCategories.lastIndex
+                ) {
+
+                    selectedCategoryIndex =
+                        newIndex
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+
+                openSelectedCategory()
+
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun handleChannelKey(
+        keyCode: Int
+    ): Boolean {
+
+        if (categoryChannels.isEmpty()) {
+            return true
+        }
+
+        val columns =
+            channelColumns()
+
+        when (keyCode) {
+
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+
+                if (selectedChannelIndex % columns > 0) {
+
+                    selectedChannelIndex--
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+
+                if (
+                    selectedChannelIndex <
+                    categoryChannels.lastIndex
+                ) {
+
+                    selectedChannelIndex++
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_UP -> {
+
+                val newIndex =
+                    selectedChannelIndex - columns
+
+                if (newIndex >= 0) {
+
+                    selectedChannelIndex =
+                        newIndex
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+                val newIndex =
+                    selectedChannelIndex + columns
+
+                if (
+                    newIndex <=
+                    categoryChannels.lastIndex
+                ) {
+
+                    selectedChannelIndex =
+                        newIndex
+
+                    invalidate()
+                }
+
+                return true
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+
+                // PLAYBACK SE IMPLEMENTARÁ EN LA SIGUIENTE ETAPA.
+                // No abrimos PlayerActivity todavía.
+
+                Toast.makeText(
+                    context,
+                    "Canal seleccionado",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                return true
+            }
+        }
+
+        return false
+    }
+
+    // ========================================================
+    // BACK
+    // ========================================================
+
+    fun handleBack(): Boolean {
+
+        when (screen) {
+
+            Screen.TV_CHANNELS -> {
+
+                screen =
+                    Screen.TV_CATEGORIES
+
+                invalidate()
+
+                return true
+            }
+
+            Screen.TV_CATEGORIES -> {
+
+                screen =
+                    Screen.HOME
+
+                invalidate()
+
+                return true
+            }
+
+            Screen.HOME -> {
+
+                return false
+            }
+
+            Screen.LOGIN -> {
+
+                return false
+            }
+        }
+    }
+
+    // ========================================================
+    // TOUCH
+    // ========================================================
+
+    override fun onTouchEvent(
+        event: MotionEvent
+    ): Boolean {
+
+        when (event.action) {
+
+            MotionEvent.ACTION_DOWN -> {
+
+                downX = event.x
+                downY = event.y
+
+                return true
+            }
+
+            MotionEvent.ACTION_UP -> {
+
+                val upX = event.x
+                val upY = event.y
+
+                val dx =
+                    upX - downX
+
+                val dy =
+                    upY - downY
+
+                val absX =
+                    kotlin.math.abs(dx)
+
+                val absY =
+                    kotlin.math.abs(dy)
+
+                if (
+                    absX > dp(40f) ||
+                    absY > dp(40f)
+                ) {
+
+                    if (screen == Screen.TV_CATEGORIES) {
+
+                        if (absX > absY) {
+
+                            if (dx < 0) {
+                                moveCategoryRight()
+                            } else {
+                                moveCategoryLeft()
+                            }
+
+                        } else {
+
+                            if (dy < 0) {
+                                moveCategoryDown()
+                            } else {
+                                moveCategoryUp()
+                            }
+                        }
+
+                    } else if (
+                        screen == Screen.TV_CHANNELS
+                    ) {
+
+                        if (absX > absY) {
+
+                            if (dx < 0) {
+                                moveChannelRight()
+                            } else {
+                                moveChannelLeft()
+                            }
+
+                        } else {
+
+                            if (dy < 0) {
+                                moveChannelDown()
+                            } else {
+                                moveChannelUp()
+                            }
+                        }
+                    }
+
+                    return true
+                }
+
+                handleTap(
+                    upX,
+                    upY
+                )
+
+                return true
+            }
+        }
+
+        return true
+    }
+
+    private fun handleTap(
+        x: Float,
+        y: Float
+    ) {
+
+        when (screen) {
+
+            Screen.HOME -> {
+
+                val tvRect =
+                    RectF(
+                        dp(55f),
+                        dp(195f),
+                        dp(225f),
+                        dp(365f)
+                    )
+
+                if (tvRect.contains(x, y)) {
+
+                    selectedSection = 0
+
+                    screen =
+                        Screen.TV_CATEGORIES
+
+                    if (liveCategories.isEmpty()) {
+                        loadTvData()
+                    }
+
+                    invalidate()
+                }
+            }
+
+            Screen.TV_CATEGORIES -> {
+
+                val columns =
+                    categoryColumns()
+
+                val cardWidth =
+                    dp(185f)
+
+                val cardHeight =
+                    dp(145f)
+
+                val gap =
+                    dp(18f)
+
+                val startX =
+                    dp(50f)
+
+                val startY =
+                    dp(155f)
+
+                liveCategories.forEachIndexed { index, _ ->
+
+                    val row =
+                        index / columns
+
+                    val col =
+                        index % columns
+
+                    val left =
+                        startX +
+                                col *
+                                (cardWidth + gap)
+
+                    val top =
+                        startY +
+                                row *
+                                (cardHeight + gap)
+
+                    val rect =
+                        RectF(
+                            left,
+                            top,
+                            left + cardWidth,
+                            top + cardHeight
+                        )
+
+                    if (rect.contains(x, y)) {
+
+                        selectedCategoryIndex =
+                            index
+
+                        openSelectedCategory()
+
+                        return
+                    }
+                }
+            }
+
+            Screen.TV_CHANNELS -> {
+
+                val columns =
+                    channelColumns()
+
+                val cardWidth =
+                    dp(205f)
+
+                val cardHeight =
+                    dp(135f)
+
+                val gap =
+                    dp(18f)
+
+                val startX =
+                    dp(50f)
+
+                val startY =
+                    dp(150f)
+
+                categoryChannels.forEachIndexed { index, channel ->
+
+                    val row =
+                        index / columns
+
+                    val col =
+                        index % columns
+
+                    val left =
+                        startX +
+                                col *
+                                (cardWidth + gap)
+
+                    val top =
+                        startY +
+                                row *
+                                (cardHeight + gap)
+
+                    val rect =
+                        RectF(
+                            left,
+                            top,
+                            left + cardWidth,
+                            top + cardHeight
+                        )
+
+                    if (rect.contains(x, y)) {
+
+                        selectedChannelIndex =
+                            index
+
+                        Toast.makeText(
+                            context,
+                            "Canal seleccionado",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        invalidate()
+
+                        return
+                    }
+                }
+            }
+
+            Screen.LOGIN -> {
+
+                // Login por teclado/mando.
+            }
+        }
+    }
+
+    // ========================================================
+    // MOVIMIENTO TOUCH
+    // ========================================================
+
+    private fun moveCategoryLeft() {
+
+        if (selectedCategoryIndex % categoryColumns() > 0) {
+            selectedCategoryIndex--
+            invalidate()
+        }
+    }
+
+    private fun moveCategoryRight() {
+
+        if (selectedCategoryIndex < liveCategories.lastIndex) {
+            selectedCategoryIndex++
+            invalidate()
+        }
+    }
+
+    private fun moveCategoryUp() {
+
+        val columns =
+            categoryColumns()
+
+        val newIndex =
+            selectedCategoryIndex - columns
+
+        if (newIndex >= 0) {
+            selectedCategoryIndex = newIndex
+            invalidate()
+        }
+    }
+
+    private fun moveCategoryDown() {
+
+        val columns =
+            categoryColumns()
+
+        val newIndex =
+            selectedCategoryIndex + columns
+
+        if (newIndex <= liveCategories.lastIndex) {
+            selectedCategoryIndex = newIndex
+            invalidate()
+        }
+    }
+
+    private fun moveChannelLeft() {
+
+        if (selectedChannelIndex % channelColumns() > 0) {
+            selectedChannelIndex--
+            invalidate()
+        }
+    }
+
+    private fun moveChannelRight() {
+
+        if (selectedChannelIndex < categoryChannels.lastIndex) {
+            selectedChannelIndex++
+            invalidate()
+        }
+    }
+
+    private fun moveChannelUp() {
+
+        val columns =
+            channelColumns()
+
+        val newIndex =
+            selectedChannelIndex - columns
+
+        if (newIndex >= 0) {
+            selectedChannelIndex = newIndex
+            invalidate()
+        }
+    }
+
+    private fun moveChannelDown() {
+
+        val columns =
+            channelColumns()
+
+        val newIndex =
+            selectedChannelIndex + columns
+
+        if (newIndex <= categoryChannels.lastIndex) {
+            selectedChannelIndex = newIndex
+            invalidate()
+        }
+    }
+
+    // ========================================================
+    // HELPERS UI
+    // ========================================================
+
+    private fun drawRoundedRect(
+        canvas: Canvas,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        radius: Float,
+        color: Int
+    ) {
+
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.color = color
+
+        canvas.drawRoundRect(
+            RectF(
+                left,
+                top,
+                right,
+                bottom
+            ),
+            radius,
+            radius,
+            paint
+        )
+    }
+
+    private fun drawBackgroundGradient(
         canvas: Canvas
     ) {
 
-        paint.style =
-            Paint.Style.FILL
-
-        paint.color =
-            Color.rgb(
-                2,
-                9,
-                18
+        paint.shader =
+            LinearGradient(
+                0f,
+                0f,
+                width.toFloat(),
+                height.toFloat(),
+                Color.rgb(8, 10, 15),
+                Color.rgb(20, 12, 20),
+                Shader.TileMode.CLAMP
             )
 
         canvas.drawRect(
@@ -1364,2051 +2483,121 @@ class HomeView(
             paint
         )
 
-        paint.color =
-            Color.rgb(
-                4,
-                25,
-                45
-            )
-
-        canvas.drawCircle(
-            width * 0.88f,
-            height * 0.10f,
-            width * 0.25f,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                3,
-                20,
-                36
-            )
-
-        canvas.drawCircle(
-            width * 0.78f,
-            height * 0.95f,
-            width * 0.30f,
-            paint
-        )
+        paint.shader = null
     }
 
-    // =========================================================
-    // SIDEBAR
-    // =========================================================
-
-    private fun drawSidebar(
-        canvas: Canvas
+    private fun drawLoading(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float
     ) {
 
-        paint.style =
-            Paint.Style.FILL
-
-        paint.color =
-            Color.rgb(
-                4,
-                16,
-                29
-            )
-
-        canvas.drawRect(
-            0f,
-            0f,
-            sidebarWidth,
-            height.toFloat(),
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                16,
-                47,
-                72
-            )
-
-        canvas.drawRect(
-            sidebarWidth - 1f,
-            0f,
-            sidebarWidth,
-            height.toFloat(),
-            paint
-        )
-
-        paint.color =
-            Color.WHITE
-
-        paint.textSize =
-            27f * scale
-
-        paint.isFakeBoldText =
-            true
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(16f)
+        textPaint.color = secondaryText
 
         canvas.drawText(
-            "▶ TVBOX",
-            sidebarWidth * 0.12f,
-            55f * scale,
-            paint
+            "Cargando TV...",
+            centerX,
+            centerY,
+            textPaint
         )
-
-        paint.color =
-            Color.rgb(
-                55,
-                165,
-                255
-            )
-
-        paint.textSize =
-            12f * scale
-
-        paint.isFakeBoldText =
-            false
-
-        canvas.drawText(
-            "PREMIUM",
-            sidebarWidth * 0.31f,
-            77f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                20,
-                60,
-                90
-            )
-
-        canvas.drawRect(
-            sidebarWidth * 0.10f,
-            102f * scale,
-            sidebarWidth * 0.90f,
-            103f * scale,
-            paint
-        )
-
-        val startY =
-            155f * scale
-
-        val spacing =
-            64f * scale
-
-        sections.forEachIndexed {
-                index,
-                title ->
-
-            val y =
-                startY +
-                        index *
-                        spacing
-
-            val focused =
-                focusZone == 3 &&
-                        selectedSection == index
-
-            if (focused) {
-
-                paint.color =
-                    Color.rgb(
-                        18,
-                        112,
-                        218
-                    )
-
-                canvas.drawRoundRect(
-                    RectF(
-                        sidebarWidth * 0.07f,
-                        y - 35f * scale,
-                        sidebarWidth * 0.93f,
-                        y + 17f * scale
-                    ),
-                    13f * scale,
-                    13f * scale,
-                    paint
-                )
-
-                paint.color =
-                    Color.rgb(
-                        80,
-                        190,
-                        255
-                    )
-
-                canvas.drawRoundRect(
-                    RectF(
-                        sidebarWidth * 0.07f,
-                        y - 27f * scale,
-                        sidebarWidth * 0.09f,
-                        y + 9f * scale
-                    ),
-                    3f * scale,
-                    3f * scale,
-                    paint
-                )
-            }
-
-            paint.color =
-                if (focused)
-                    Color.WHITE
-                else
-                    Color.rgb(
-                        190,
-                        205,
-                        220
-                    )
-
-            paint.textSize =
-                if (focused)
-                    19f * scale
-                else
-                    18f * scale
-
-            paint.isFakeBoldText =
-                focused
-
-            canvas.drawText(
-                title,
-                sidebarWidth * 0.20f,
-                y,
-                paint
-            )
-        }
     }
 
-    // =========================================================
-    // HEADER
-    // =========================================================
-
-    private fun drawHeader(
-        canvas: Canvas
+    private fun drawEmptyState(
+        canvas: Canvas,
+        message: String
     ) {
 
-        paint.color =
-            Color.rgb(
-                190,
-                205,
-                220
-            )
-
-        paint.textSize =
-            14f * scale
-
-        paint.isFakeBoldText =
-            false
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = dp(17f)
+        textPaint.color = secondaryText
 
         canvas.drawText(
-            "TVBOX PREMIUM",
-            contentLeft,
-            42f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                130,
-                150,
-                170
-            )
-
-        paint.textSize =
-            15f * scale
-
-        canvas.drawText(
-            "⌕  Buscar",
-            contentRight - 150f * scale,
-            42f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                170,
-                190,
-                210
-            )
-
-        canvas.drawCircle(
-            contentRight - 18f * scale,
-            36f * scale,
-            13f * scale,
-            paint
+            message,
+            width / 2f,
+            height / 2f,
+            textPaint
         )
     }
 
-    // =========================================================
-    // HERO
-    // =========================================================
+    private fun categoryColumns(): Int {
 
-    private fun drawHero(
-        canvas: Canvas
-    ) {
+        return when {
 
-        val left =
-            contentLeft
+            width >= dp(1200f) -> 5
 
-        val top =
-            65f * scale
+            width >= dp(900f) -> 4
 
-        val right =
-            contentRight
-
-        val heroHeight =
-            min(
-                285f * scale,
-                height * 0.31f
-            )
-
-        val bottom =
-            top + heroHeight
-
-        val heroFocused =
-            focusZone == 0
-
-        // -----------------------------------------------------
-        // FONDO
-        // -----------------------------------------------------
-
-        paint.style =
-            Paint.Style.FILL
-
-        paint.color =
-            Color.rgb(
-                5,
-                18,
-                32
-            )
-
-        canvas.drawRoundRect(
-            RectF(
-                left,
-                top,
-                right,
-                bottom
-            ),
-            22f * scale,
-            22f * scale,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // VISUAL DERECHA
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.rgb(
-                5,
-                38,
-                65
-            )
-
-        val visualPath =
-            Path()
-
-        visualPath.moveTo(
-            left +
-                    (right - left) *
-                    0.48f,
-            top
-        )
-
-        visualPath.lineTo(
-            right,
-            top
-        )
-
-        visualPath.lineTo(
-            right,
-            bottom
-        )
-
-        visualPath.lineTo(
-            left +
-                    (right - left) *
-                    0.38f,
-            bottom
-        )
-
-        visualPath.close()
-
-        canvas.drawPath(
-            visualPath,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // ELEMENTOS CINEMATOGRÁFICOS
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.rgb(
-                7,
-                60,
-                98
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            135f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                10,
-                85,
-                135
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            90f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                18,
-                110,
-                175
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            45f * scale,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // PLAY
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.argb(
-                65,
-                255,
-                255,
-                255
-            )
-
-        canvas.drawCircle(
-            right - 230f * scale,
-            top + heroHeight * 0.48f,
-            78f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.WHITE
-
-        val play =
-            Path()
-
-        val playX =
-            right - 230f * scale
-
-        val playY =
-            top + heroHeight * 0.48f
-
-        play.moveTo(
-            playX - 20f * scale,
-            playY - 31f * scale
-        )
-
-        play.lineTo(
-            playX + 35f * scale,
-            playY
-        )
-
-        play.lineTo(
-            playX - 20f * scale,
-            playY + 31f * scale
-        )
-
-        play.close()
-
-        canvas.drawPath(
-            play,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // DEGRADADO
-        // -----------------------------------------------------
-
-        val gradientWidth =
-            (right - left) * 0.65f
-
-        val gradientSteps =
-            16
-
-        for (
-            i in 0 until gradientSteps
-        ) {
-
-            val progress =
-                i.toFloat() /
-                        gradientSteps.toFloat()
-
-            val alpha =
-                (
-                    175f *
-                            (1f - progress)
-                    )
-                    .toInt()
-                    .coerceIn(
-                        0,
-                        175
-                    )
-
-            paint.color =
-                Color.argb(
-                    alpha,
-                    2,
-                    9,
-                    18
-                )
-
-            val sectionLeft =
-                left +
-                        gradientWidth *
-                        progress
-
-            val sectionRight =
-                left +
-                        gradientWidth *
-                        (
-                            (i + 1).toFloat() /
-                                    gradientSteps.toFloat()
-                            )
-
-            canvas.drawRect(
-                sectionLeft,
-                top,
-                sectionRight,
-                bottom,
-                paint
-            )
-        }
-
-        // -----------------------------------------------------
-        // FOCO
-        // -----------------------------------------------------
-
-        if (heroFocused) {
-
-            paint.style =
-                Paint.Style.STROKE
-
-            paint.strokeWidth =
-                3f * scale
-
-            paint.color =
-                Color.argb(
-                    235,
-                    255,
-                    255,
-                    255
-                )
-
-            canvas.drawRoundRect(
-                RectF(
-                    left - 2f * scale,
-                    top - 2f * scale,
-                    right + 2f * scale,
-                    bottom + 2f * scale
-                ),
-                23f * scale,
-                23f * scale,
-                paint
-            )
-
-            paint.style =
-                Paint.Style.FILL
-        }
-
-        // -----------------------------------------------------
-        // TEXTO
-        // -----------------------------------------------------
-
-        paint.color =
-            Color.rgb(
-                75,
-                180,
-                255
-            )
-
-        paint.textSize =
-            14f * scale
-
-        paint.isFakeBoldText =
-            true
-
-        canvas.drawText(
-            "CONTENIDO DESTACADO",
-            left + 36f * scale,
-            top + 42f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.WHITE
-
-        paint.textSize =
-            40f * scale
-
-        paint.isFakeBoldText =
-            true
-
-        canvas.drawText(
-            "TVBOX PREMIUM",
-            left + 36f * scale,
-            top + 100f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                205,
-                220,
-                235
-            )
-
-        paint.textSize =
-            18f * scale
-
-        paint.isFakeBoldText =
-            false
-
-        canvas.drawText(
-            "Tu entretenimiento en un solo lugar.",
-            left + 36f * scale,
-            top + 140f * scale,
-            paint
-        )
-
-        // -----------------------------------------------------
-        // BOTÓN
-        // -----------------------------------------------------
-
-        val buttonLeft =
-            left + 36f * scale
-
-        val buttonTop =
-            top + 175f * scale
-
-        val buttonRight =
-            buttonLeft +
-                    168f * scale
-
-        val buttonBottom =
-            buttonTop +
-                    52f * scale
-
-        paint.color =
-            if (heroFocused)
-                Color.rgb(
-                    35,
-                    145,
-                    255
-                )
-            else
-                Color.rgb(
-                    15,
-                    115,
-                    225
-                )
-
-        canvas.drawRoundRect(
-            RectF(
-                buttonLeft,
-                buttonTop,
-                buttonRight,
-                buttonBottom
-            ),
-            12f * scale,
-            12f * scale,
-            paint
-        )
-
-        paint.color =
-            Color.WHITE
-
-        paint.textSize =
-            16f * scale
-
-        paint.isFakeBoldText =
-            true
-
-        canvas.drawText(
-            "▶  VER AHORA",
-            buttonLeft + 20f * scale,
-            buttonTop + 33f * scale,
-            paint
-        )
-    }
-
-    // =========================================================
-    // TV
-    // =========================================================
-
-    private fun drawLiveSection(
-        canvas: Canvas
-    ) {
-
-        val heroBottom =
-            65f * scale +
-                    min(
-                        285f * scale,
-                        height * 0.31f
-                    )
-
-        val titleY =
-            heroBottom +
-                    43f * scale
-
-        paint.color =
-            Color.WHITE
-
-        paint.textSize =
-            23f * scale
-
-        paint.isFakeBoldText =
-            true
-
-        canvas.drawText(
-            "TV EN VIVO",
-            contentLeft,
-            titleY,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                110,
-                140,
-                165
-            )
-
-        paint.textSize =
-            12f * scale
-
-        paint.isFakeBoldText =
-            false
-
-        if (loadingLive) {
-
-            paint.color =
-                Color.rgb(
-                    110,
-                    140,
-                    165
-                )
-
-            paint.textSize =
-                13f * scale
-
-            canvas.drawText(
-                "Cargando canales reales...",
-                contentLeft + 135f * scale,
-                titleY,
-                paint
-            )
-
-            return
-        }
-
-        if (liveError.isNotEmpty()) {
-
-            paint.color =
-                Color.rgb(
-                    255,
-                    105,
-                    105
-                )
-
-            paint.textSize =
-                13f * scale
-
-            canvas.drawText(
-                "Error TV: $liveError",
-                contentLeft + 135f * scale,
-                titleY,
-                paint
-            )
-
-            return
-        }
-
-        canvas.drawText(
-            "Canales disponibles",
-            contentLeft + 135f * scale,
-            titleY,
-            paint
-        )
-
-        val top =
-            titleY +
-                    17f * scale
-
-        val gap =
-            14f * scale
-
-        val cardWidth =
-            (
-                contentWidth -
-                        5f * gap
-                ) / 6f
-
-        val finalWidth =
-            cardWidth.coerceIn(
-                135f * scale,
-                235f * scale
-            )
-
-        val cardHeight =
-            finalWidth *
-                    0.66f
-
-        channels.forEachIndexed {
-                index,
-                channel ->
-
-            val x =
-                contentLeft +
-                        index *
-                        (
-                            finalWidth +
-                                    gap
-                            ) -
-                        tvScroll
-
-            if (
-                x + finalWidth <
-                contentLeft ||
-                x > contentRight
-            ) {
-                return@forEachIndexed
-            }
-
-            val focused =
-                focusZone == 1 &&
-                        selectedCard == index
-
-            paint.color =
-                if (focused)
-                    Color.rgb(
-                        18,
-                        104,
-                        190
-                    )
-                else
-                    Color.rgb(
-                        8,
-                        30,
-                        51
-                    )
-
-            canvas.drawRoundRect(
-                RectF(
-                    x,
-                    top,
-                    x + finalWidth,
-                    top + cardHeight
-                ),
-                15f * scale,
-                15f * scale,
-                paint
-            )
-
-            if (focused) {
-
-                paint.style =
-                    Paint.Style.STROKE
-
-                paint.strokeWidth =
-                    3f * scale
-
-                paint.color =
-                    Color.WHITE
-
-                canvas.drawRoundRect(
-                    RectF(
-                        x - 2f * scale,
-                        top - 2f * scale,
-                        x + finalWidth +
-                                2f * scale,
-                        top + cardHeight +
-                                2f * scale
-                    ),
-                    16f * scale,
-                    16f * scale,
-                    paint
-                )
-
-                paint.style =
-                    Paint.Style.FILL
-            }
-
-            paint.color =
-                Color.rgb(
-                    14,
-                    50,
-                    78
-                )
-
-            canvas.drawCircle(
-                x + finalWidth / 2f,
-                top + cardHeight * 0.37f,
-                min(
-                    finalWidth,
-                    cardHeight
-                ) * 0.22f,
-                paint
-            )
-
-            paint.color =
-                Color.WHITE
-
-            val miniPlay =
-                Path()
-
-            val cx =
-                x +
-                        finalWidth / 2f
-
-            val cy =
-                top +
-                        cardHeight * 0.37f
-
-            miniPlay.moveTo(
-                cx - 8f * scale,
-                cy - 12f * scale
-            )
-
-            miniPlay.lineTo(
-                cx + 12f * scale,
-                cy
-            )
-
-            miniPlay.lineTo(
-                cx - 8f * scale,
-                cy + 12f * scale
-            )
-
-            miniPlay.close()
-
-            canvas.drawPath(
-                miniPlay,
-                paint
-            )
-
-            paint.color =
-                Color.WHITE
-
-            paint.textSize =
-                14f * scale
-
-            paint.isFakeBoldText =
-                true
-
-            val textWidth =
-                paint.measureText(
-                    channel
-                )
-
-            canvas.drawText(
-                channel,
-                x +
-                        (
-                            finalWidth -
-                                    textWidth
-                            ) / 2f,
-                top +
-                        cardHeight *
-                        0.73f,
-                paint
-            )
-
-            paint.color =
-                Color.rgb(
-                    125,
-                    195,
-                    255
-                )
-
-            paint.textSize =
-                10f * scale
-
-            paint.isFakeBoldText =
-                false
-
-            val live =
-                "● EN VIVO"
-
-            val liveWidth =
-                paint.measureText(
-                    live
-                )
-
-            canvas.drawText(
-                live,
-                x +
-                        (
-                            finalWidth -
-                                    liveWidth
-                            ) / 2f,
-                top +
-                        cardHeight *
-                        0.89f,
-                paint
-            )
+            else -> 3
         }
     }
 
-    // =========================================================
-    // PELÍCULAS
-    // =========================================================
+    private fun channelColumns(): Int {
 
-    private fun drawMoviesSection(
-        canvas: Canvas
-    ) {
+        return when {
 
-        val heroBottom =
-            65f * scale +
-                    min(
-                        285f * scale,
-                        height * 0.31f
-                    )
+            width >= dp(1200f) -> 5
 
-        val liveTitle =
-            heroBottom +
-                    43f * scale
+            width >= dp(900f) -> 4
 
-        val liveTop =
-            liveTitle +
-                    17f * scale
-
-        val liveWidth =
-            (
-                (
-                    contentWidth -
-                            5f *
-                            14f *
-                            scale
-                    ) / 6f
-                ).coerceIn(
-                    135f * scale,
-                    235f * scale
-                )
-
-        val liveHeight =
-            liveWidth *
-                    0.66f
-
-        val titleY =
-            liveTop +
-                    liveHeight +
-                    48f * scale
-
-        paint.color =
-            Color.WHITE
-
-        paint.textSize =
-            23f * scale
-
-        paint.isFakeBoldText =
-            true
-
-        canvas.drawText(
-            "PELÍCULAS POPULARES",
-            contentLeft,
-            titleY,
-            paint
-        )
-
-        paint.color =
-            Color.rgb(
-                110,
-                140,
-                165
-            )
-
-        paint.textSize =
-            12f * scale
-
-        paint.isFakeBoldText =
-            false
-
-        canvas.drawText(
-            "Recomendadas para ti",
-            contentLeft + 245f * scale,
-            titleY,
-            paint
-        )
-
-        val top =
-            titleY +
-                    17f * scale
-
-        val gap =
-            16f * scale
-
-        val cardWidth =
-            (
-                contentWidth -
-                        5f * gap
-                ) / 6f
-
-        val finalWidth =
-            cardWidth.coerceIn(
-                120f * scale,
-                195f * scale
-            )
-
-        val cardHeight =
-            finalWidth *
-                    1.34f
-
-        movies.forEachIndexed {
-                index,
-                movie ->
-
-            val x =
-                contentLeft +
-                        index *
-                        (
-                            finalWidth +
-                                    gap
-                            ) -
-                        movieScroll
-
-            if (
-                x + finalWidth <
-                contentLeft ||
-                x > contentRight
-            ) {
-                return@forEachIndexed
-            }
-
-            val focused =
-                focusZone == 2 &&
-                        selectedCard == index
-
-            paint.color =
-                if (focused)
-                    Color.rgb(
-                        20,
-                        80,
-                        135
-                    )
-                else
-                    Color.rgb(
-                        10 + index * 4,
-                        26 + index * 4,
-                        45 + index * 5
-                    )
-
-            canvas.drawRoundRect(
-                RectF(
-                    x,
-                    top,
-                    x + finalWidth,
-                    top + cardHeight
-                ),
-                12f * scale,
-                12f * scale,
-                paint
-            )
-
-            paint.color =
-                Color.rgb(
-                    18 + index * 4,
-                    43 + index * 3,
-                    68 + index * 4
-                )
-
-            canvas.drawRoundRect(
-                RectF(
-                    x + 7f * scale,
-                    top + 7f * scale,
-                    x + finalWidth -
-                            7f * scale,
-                    top +
-                            cardHeight *
-                            0.77f
-                ),
-                9f * scale,
-                9f * scale,
-                paint
-            )
-
-            if (focused) {
-
-                paint.style =
-                    Paint.Style.STROKE
-
-                paint.strokeWidth =
-                    3f * scale
-
-                paint.color =
-                    Color.WHITE
-
-                canvas.drawRoundRect(
-                    RectF(
-                        x - 2f * scale,
-                        top - 2f * scale,
-                        x + finalWidth +
-                                2f * scale,
-                        top + cardHeight +
-                                2f * scale
-                    ),
-                    13f * scale,
-                    13f * scale,
-                    paint
-                )
-
-                paint.style =
-                    Paint.Style.FILL
-            }
-
-            paint.color =
-                Color.WHITE
-
-            paint.textSize =
-                13f * scale
-
-            paint.isFakeBoldText =
-                true
-
-            canvas.drawText(
-                movie,
-                x + 11f * scale,
-                top +
-                        cardHeight *
-                        0.87f,
-                paint
-            )
+            else -> 3
         }
     }
 
-    // =========================================================
-    // TOUCH
-    // =========================================================
+    private fun truncateText(
+        value: String,
+        maxLength: Int
+    ): String {
 
-    override fun onTouchEvent(
-        event: MotionEvent
-    ): Boolean {
+        if (value.length <= maxLength) {
+            return value
+        }
 
-        when (event.action) {
+        return value
+            .take(maxLength - 1)
+            .trimEnd() + "…"
+    }
 
-            MotionEvent.ACTION_DOWN -> {
+    private fun initials(
+        value: String
+    ): String {
 
-                touchStartX =
-                    event.x
-
-                touchStartY =
-                    event.y
-
-                return true
-            }
-
-            MotionEvent.ACTION_UP -> {
-
-                val x =
-                    event.x
-
-                val y =
-                    event.y
-
-                val dx =
-                    x - touchStartX
-
-                val dy =
-                    y - touchStartY
-
-                if (
-                    abs(dx) > 70f &&
-                    abs(dx) > abs(dy)
-                ) {
-
-                    if (
-                        focusZone == 1
-                    ) {
-
-                        tvScroll +=
-                            if (dx < 0)
-                                220f * scale
-                            else
-                                -220f * scale
-
-                        tvScroll =
-                            tvScroll.coerceIn(
-                                0f,
-                                max(0f, (channels.size * 220f * scale) - contentWidth)
-                            )
-
-                    } else if (
-                        focusZone == 2
-                    ) {
-
-                        movieScroll +=
-                            if (dx < 0)
-                                220f * scale
-                            else
-                                -220f * scale
-
-                        movieScroll =
-                            movieScroll.coerceIn(
-                                0f,
-                                900f * scale
-                            )
-                    }
-
-                    invalidate()
-
-                    return true
-                }
-
-                handleTouch(
-                    x,
-                    y
+        val words =
+            value.trim()
+                .split(
+                    Regex("\\s+")
                 )
-
-                performClick()
-
-                return true
-            }
-        }
-
-        return true
-    }
-
-    override fun performClick():
-            Boolean {
-
-        super.performClick()
-
-        return true
-    }
-
-    // =========================================================
-    // TOUCH HIT TEST
-    // =========================================================
-
-    private fun handleTouch(
-        x: Float,
-        y: Float
-    ) {
-
-        // -----------------------------------------------------
-        // SIDEBAR
-        // -----------------------------------------------------
-
-        if (
-            x <= sidebarWidth
-        ) {
-
-            val startY =
-                120f * scale
-
-            val spacing =
-                64f * scale
-
-            sections.forEachIndexed {
-                    index,
-                    _ ->
-
-                val top =
-                    startY +
-                            index *
-                            spacing
-
-                val bottom =
-                    top +
-                            60f * scale
-
-                if (
-                    y >= top &&
-                    y <= bottom
-                ) {
-
-                    selectedSection =
-                        index
-
-                    selectedCard =
-                        0
-
-                    focusZone =
-                        3
-
-                    tvScroll =
-                        0f
-
-                    movieScroll =
-                        0f
-
-                    invalidate()
-
-                    return
+                .filter {
+                    it.isNotBlank()
                 }
-            }
+
+        if (words.isEmpty()) {
+            return "TV"
         }
 
-        // -----------------------------------------------------
-        // HERO COMPLETO
-        // -----------------------------------------------------
+        return if (words.size == 1) {
 
-        val heroTop =
-            65f * scale
+            words[0]
+                .take(2)
+                .uppercase()
 
-        val heroHeight =
-            min(
-                285f * scale,
-                height * 0.31f
-            )
+        } else {
 
-        val heroBottom =
-            heroTop +
-                    heroHeight
-
-        if (
-            x >= contentLeft &&
-            x <= contentRight &&
-            y >= heroTop &&
-            y <= heroBottom
-        ) {
-
-            selectedSection =
-                0
-
-            selectedCard =
-                0
-
-            focusZone =
-                0
-
-            invalidate()
-
-            return
-        }
-
-        // -----------------------------------------------------
-        // VER AHORA
-        // -----------------------------------------------------
-
-        val buttonTop =
-            heroTop +
-                    165f * scale
-
-        if (
-            x >= contentLeft &&
-            x <= contentLeft +
-                    240f * scale &&
-            y >= buttonTop &&
-            y <= buttonTop +
-                    70f * scale
-        ) {
-
-            selectedSection =
-                1
-
-            selectedCard =
-                0
-
-            focusZone =
-                1
-
-            invalidate()
-
-            return
-        }
-
-        // -----------------------------------------------------
-        // TV
-        // -----------------------------------------------------
-
-        val liveTitle =
-            heroTop +
-                    heroHeight +
-                    43f * scale
-
-        val liveTop =
-            liveTitle +
-                    17f * scale
-
-        val gap =
-            14f * scale
-
-        val liveWidth =
-            (
-                (
-                    contentWidth -
-                            5f * gap
-                    ) / 6f
-                ).coerceIn(
-                    135f * scale,
-                    235f * scale
-                )
-
-        val liveHeight =
-            liveWidth *
-                    0.66f
-
-        if (
-            y >= liveTop &&
-            y <= liveTop +
-                    liveHeight
-        ) {
-
-            channels.forEachIndexed {
-                    index,
-                    _ ->
-
-                val cardLeft =
-                    contentLeft +
-                            index *
-                            (
-                                liveWidth +
-                                        gap
-                                ) -
-                            tvScroll
-
-                if (
-                    x >= cardLeft &&
-                    x <= cardLeft +
-                            liveWidth
-                ) {
-
-                    selectedSection =
-                        1
-
-                    selectedCard =
-                        index
-
-                    focusZone =
-                        1
-
-                    invalidate()
-
-                    return
+            words
+                .take(2)
+                .joinToString("") {
+                    it.first()
+                        .uppercase()
                 }
-            }
-        }
-
-        // -----------------------------------------------------
-        // PELÍCULAS
-        // -----------------------------------------------------
-
-        val movieTitle =
-            liveTop +
-                    liveHeight +
-                    48f * scale
-
-        val movieTop =
-            movieTitle +
-                    17f * scale
-
-        val movieGap =
-            16f * scale
-
-        val movieWidth =
-            (
-                (
-                    contentWidth -
-                            5f *
-                            movieGap
-                    ) / 6f
-                ).coerceIn(
-                    120f * scale,
-                    195f * scale
-                )
-
-        val movieHeight =
-            movieWidth *
-                    1.34f
-
-        if (
-            y >= movieTop &&
-            y <= movieTop +
-                    movieHeight
-        ) {
-
-            movies.forEachIndexed {
-                    index,
-                    _ ->
-
-                val cardLeft =
-                    contentLeft +
-                            index *
-                            (
-                                movieWidth +
-                                        movieGap
-                                ) -
-                            movieScroll
-
-                if (
-                    x >= cardLeft &&
-                    x <= cardLeft +
-                            movieWidth
-                ) {
-
-                    selectedSection =
-                        2
-
-                    selectedCard =
-                        index
-
-                    focusZone =
-                        2
-
-                    invalidate()
-
-                    return
-                }
-            }
         }
     }
 
-    // =========================================================
-    // D-PAD
-    // =========================================================
-
-    override fun onKeyDown(
-        keyCode: Int,
-        event: KeyEvent
-    ): Boolean {
-
-        when (keyCode) {
-
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-
-                when (focusZone) {
-
-                    0 -> {
-
-                        focusZone =
-                            1
-
-                        selectedCard =
-                            0
-                    }
-
-                    1 -> {
-
-                        if (
-                            selectedCard <
-                            channels.lastIndex
-                        ) {
-
-                            selectedCard++
-
-                            keepTvCardVisible()
-                        }
-                    }
-
-                    2 -> {
-
-                        if (
-                            selectedCard <
-                            movies.lastIndex
-                        ) {
-
-                            selectedCard++
-
-                            keepMovieCardVisible()
-                        }
-                    }
-
-                    3 -> {
-
-                        focusZone =
-                            0
-                    }
-                }
-
-                invalidate()
-
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-
-                when (focusZone) {
-
-                    1 -> {
-
-                        if (
-                            selectedCard > 0
-                        ) {
-
-                            selectedCard--
-
-                            keepTvCardVisible()
-
-                        } else {
-
-                            focusZone =
-                                3
-                        }
-                    }
-
-                    2 -> {
-
-                        if (
-                            selectedCard > 0
-                        ) {
-
-                            selectedCard--
-
-                            keepMovieCardVisible()
-
-                        } else {
-
-                            focusZone =
-                                3
-                        }
-                    }
-
-                    else -> {
-
-                        focusZone =
-                            3
-                    }
-                }
-
-                invalidate()
-
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-
-                when (focusZone) {
-
-                    0 -> {
-
-                        focusZone =
-                            1
-
-                        selectedCard =
-                            0
-                    }
-
-                    1 -> {
-
-                        focusZone =
-                            2
-
-                        selectedCard =
-                            0
-                    }
-
-                    2 -> {
-
-                        focusZone =
-                            3
-
-                        selectedSection =
-                            0
-                    }
-
-                    3 -> {
-
-                        selectedSection++
-
-                        if (
-                            selectedSection >
-                            sections.lastIndex
-                        ) {
-
-                            selectedSection =
-                                0
-                        }
-                    }
-                }
-
-                invalidate()
-
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_UP -> {
-
-                when (focusZone) {
-
-                    0 -> {
-
-                        focusZone =
-                            3
-                    }
-
-                    1 -> {
-
-                        focusZone =
-                            0
-                    }
-
-                    2 -> {
-
-                        focusZone =
-                            1
-
-                        selectedCard =
-                            0
-                    }
-
-                    3 -> {
-
-                        selectedSection--
-
-                        if (
-                            selectedSection < 0
-                        ) {
-
-                            selectedSection =
-                                sections.lastIndex
-                        }
-                    }
-                }
-
-                invalidate()
-
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-
-                handleEnter()
-
-                return true
-            }
-
-            KeyEvent.KEYCODE_BACK -> {
-
-                if (
-                    focusZone != 3
-                ) {
-
-                    focusZone =
-                        3
-
-                    invalidate()
-
-                    return true
-                }
-
-                selectedSection =
-                    0
-
-                selectedCard =
-                    0
-
-                focusZone =
-                    0
-
-                invalidate()
-
-                return true
-            }
-        }
-
-        return super.onKeyDown(
-            keyCode,
-            event
-        )
-    }
-
-    // =========================================================
-    // VISIBILIDAD TV
-    // =========================================================
-
-    private fun keepTvCardVisible() {
-
-        val gap =
-            14f * scale
-
-        val cardWidth =
-            (
-                (
-                    contentWidth -
-                            5f * gap
-                    ) / 6f
-                ).coerceIn(
-                    135f * scale,
-                    235f * scale
-                )
-
-        val position =
-            selectedCard *
-                    (
-                        cardWidth +
-                                gap
-                        )
-
-        val visibleRight =
-            contentWidth -
-                    cardWidth
-
-        if (
-            position -
-                    tvScroll >
-            visibleRight
-        ) {
-
-            tvScroll =
-                position -
-                        visibleRight
-        }
-
-        if (
-            position -
-                    tvScroll <
-            0f
-        ) {
-
-            tvScroll =
-                position
-        }
-
-        tvScroll =
-            tvScroll.coerceAtLeast(
-                0f
-            )
-    }
-
-    // =========================================================
-    // VISIBILIDAD PELÍCULAS
-    // =========================================================
-
-    private fun keepMovieCardVisible() {
-
-        val gap =
-            16f * scale
-
-        val cardWidth =
-            (
-                (
-                    contentWidth -
-                            5f * gap
-                    ) / 6f
-                ).coerceIn(
-                    120f * scale,
-                    195f * scale
-                )
-
-        val position =
-            selectedCard *
-                    (
-                        cardWidth +
-                                gap
-                        )
-
-        val visibleRight =
-            contentWidth -
-                    cardWidth
-
-        if (
-            position -
-                    movieScroll >
-            visibleRight
-        ) {
-
-            movieScroll =
-                position -
-                        visibleRight
-        }
-
-        if (
-            position -
-                    movieScroll <
-            0f
-        ) {
-
-            movieScroll =
-                position
-        }
-
-        movieScroll =
-            movieScroll.coerceAtLeast(
-                0f
-            )
-    }
-
-    // =========================================================
-    // ENTER
-    // =========================================================
-
-    private fun handleEnter() {
-
-        when (focusZone) {
-
-            0 -> {
-
-                focusZone =
-                    1
-
-                selectedCard =
-                    0
-            }
-
-            1 -> {
-
-                // Próximo paso:
-                // abrir Live TV real
-            }
-
-            2 -> {
-
-                // Próximo paso:
-                // abrir VOD real
-            }
-
-            3 -> {
-
-                when (selectedSection) {
-
-                    0 -> {
-
-                        focusZone =
-                            0
-                    }
-
-                    1 -> {
-
-                        focusZone =
-                            1
-
-                        selectedCard =
-                            0
-                    }
-
-                    2 -> {
-
-                        focusZone =
-                            2
-
-                        selectedCard =
-                            0
-                    }
-
-                    3 -> {
-                        // Buscar
-                    }
-
-                    4 -> {
-                        // Favoritos
-                    }
-
-                    5 -> {
-                        // Configuración
-                    }
-                }
-            }
-        }
-
-        invalidate()
+    private fun dp(
+        value: Float
+    ): Float {
+
+        return value *
+                resources.displayMetrics.density
     }
 }
