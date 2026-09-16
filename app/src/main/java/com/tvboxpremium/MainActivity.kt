@@ -1,6 +1,7 @@
 package com.tvboxpremium
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -225,6 +226,18 @@ class MainActivity : Activity() {
         appView.requestFocus()
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // No se reinicia la sesión al cambiar orientación o tamaño.
+        appView.invalidate()
+        appView.requestFocus()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("session_active", appView.hasActiveSession())
+    }
+
     override fun onBackPressed() {
 
         if (!appView.handleBack()) {
@@ -313,6 +326,9 @@ class PremiumView(
 
     private var session:
             XtreamSession? = null
+
+    private val prefs =
+        context.getSharedPreferences("tvbox_premium_session", Context.MODE_PRIVATE)
 
     // ========================================================
     // PANTALLA
@@ -428,8 +444,69 @@ class PremiumView(
 
         requestFocus()
 
+        restoreSavedSession()
+
         paint.isAntiAlias = true
         textPaint.isAntiAlias = true
+    }
+
+    fun hasActiveSession(): Boolean {
+        return session != null
+    }
+
+    private fun restoreSavedSession() {
+        val savedServer = prefs.getString("server", "") ?: ""
+        val savedUser = prefs.getString("user", "") ?: ""
+        val savedPassword = prefs.getString("password", "") ?: ""
+        if (savedServer.isNotBlank() && savedUser.isNotBlank()) {
+            loginServer = savedServer
+            loginUser = savedUser
+            loginPassword = savedPassword
+            session = XtreamSession(savedServer, savedUser, savedPassword)
+            screen = Screen.HOME
+            loadTvData()
+        }
+    }
+
+    private fun saveSession() {
+        prefs.edit()
+            .putString("server", loginServer.trim().removeSuffix("/"))
+            .putString("user", loginUser.trim())
+            .putString("password", loginPassword)
+            .apply()
+    }
+
+    private fun showAccountMenu() {
+        val current = session ?: return
+        AlertDialog.Builder(context)
+            .setTitle("Mi cuenta")
+            .setMessage("Usuario: ${current.username}\nServidor: ${current.serverUrl}\n\nPuedes cerrar sesión o cambiar de usuario.")
+            .setPositiveButton("Cerrar sesión") { _, _ ->
+                prefs.edit().clear().apply()
+                session = null
+                loginServer = ""
+                loginUser = ""
+                loginPassword = ""
+                loginError = ""
+                screen = Screen.LOGIN
+                invalidate()
+            }
+            .setNegativeButton("Cancelar", null)
+            .setNeutralButton("Cambiar usuario") { _, _ ->
+                // El cambio de usuario elimina la sesión guardada para que
+                // la próxima apertura no vuelva a entrar automáticamente.
+                prefs.edit().clear().apply()
+                session = null
+                loginServer = ""
+                loginUser = ""
+                loginPassword = ""
+                loginField = 0
+                loginError = ""
+                screen = Screen.LOGIN
+                activity.hideKeyboard()
+                invalidate()
+            }
+            .show()
     }
 
     // ========================================================
@@ -1442,6 +1519,13 @@ class PremiumView(
         textPaint.letterSpacing =
             0f
 
+        if (session != null) {
+            textPaint.textAlign = Paint.Align.RIGHT
+            textPaint.textSize = responsiveText(11f)
+            textPaint.color = secondaryText
+            canvas.drawText("CUENTA  ⋮", width - dp(22f), dp(35f), textPaint)
+        }
+
         if (current != "INICIO") {
 
             textPaint.textSize =
@@ -2415,6 +2499,11 @@ class PremiumView(
             // ------------------------------------------------
 
             Screen.HOME -> {
+
+                if (session != null && x > width - dp(145f) && y < dp(65f)) {
+                    showAccountMenu()
+                    return
+                }
 
                 val mobile =
                     isMobile()
@@ -3479,6 +3568,8 @@ class PremiumView(
                         username = user,
                         password = password
                     )
+
+                saveSession()
 
                 post {
 
