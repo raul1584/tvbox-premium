@@ -3,6 +3,7 @@ package com.tvboxpremium
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -316,6 +317,28 @@ class PremiumView(
             .putString("user", loginUser.trim())
             .putString("password", loginPassword)
             .apply()
+    }
+
+    private fun playLiveChannel(channel: LiveChannel) {
+        val currentSession = session ?: return
+        val streamUrl = "${currentSession.serverUrl}/live/${currentSession.username}/${currentSession.password}/${channel.streamId}.${channel.extension}"
+
+        val intent = Intent(context, PlayerActivity::class.java).apply {
+            putExtra("STREAM_URL", streamUrl)
+            putExtra("STREAM_TITLE", channel.name)
+        }
+        context.startActivity(intent)
+    }
+
+    private fun playVodMovie(detail: VodMovieDetail) {
+        val currentSession = session ?: return
+        val streamUrl = "${currentSession.serverUrl}/movie/${currentSession.username}/${currentSession.password}/${detail.streamId}.${detail.containerExtension}"
+
+        val intent = Intent(context, PlayerActivity::class.java).apply {
+            putExtra("STREAM_URL", streamUrl)
+            putExtra("STREAM_TITLE", detail.title)
+        }
+        context.startActivity(intent)
     }
 
     private fun showAccountMenu() {
@@ -1214,8 +1237,7 @@ class PremiumView(
 
                     if (RectF(left, top, left + cardWidth, top + cardHeight).contains(x, y)) {
                         selectedChannelIndex = index
-                        Toast.makeText(context, channel.name, Toast.LENGTH_SHORT).show()
-                        invalidate()
+                        playLiveChannel(channel)
                         return
                     }
                 }
@@ -1270,11 +1292,7 @@ class PremiumView(
 
                 if (RectF(btnPlayLeft, btnPlayTop, btnPlayRight, btnPlayBottom).contains(x, y)) {
                     detailFocusedElement = 0
-                    val detail = currentMovieDetail
-                    if (detail != null && session != null) {
-                        Toast.makeText(context, "Reproduciendo: ${detail.title}", Toast.LENGTH_LONG).show()
-                    }
-                    invalidate()
+                    currentMovieDetail?.let { playVodMovie(it) }
                     return
                 }
 
@@ -1417,8 +1435,7 @@ class PremiumView(
             KeyEvent.KEYCODE_DPAD_UP -> { val n = selectedChannelIndex - columns; if (n >= 0) { selectedChannelIndex = n; ensureChannelVisible(); invalidate(); return true } }
             KeyEvent.KEYCODE_DPAD_DOWN -> { val n = selectedChannelIndex + columns; if (n <= categoryChannels.lastIndex) { selectedChannelIndex = n; ensureChannelVisible(); invalidate(); return true } }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                val channel = categoryChannels[selectedChannelIndex]
-                Toast.makeText(context, channel.name, Toast.LENGTH_SHORT).show()
+                playLiveChannel(categoryChannels[selectedChannelIndex])
                 return true
             }
         }
@@ -1460,10 +1477,7 @@ class PremiumView(
             KeyEvent.KEYCODE_DPAD_RIGHT -> if (detailFocusedElement == 1 && selectedRelatedMovieIndex < min(7, categoryVodMovies.lastIndex)) { selectedRelatedMovieIndex++; invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 if (detailFocusedElement == 0) {
-                    val detail = currentMovieDetail
-                    if (detail != null && session != null) {
-                        Toast.makeText(context, "Reproduciendo: ${detail.title}", Toast.LENGTH_LONG).show()
-                    }
+                    currentMovieDetail?.let { playVodMovie(it) }
                 } else if (detailFocusedElement == 1 && categoryVodMovies.isNotEmpty()) {
                     openVodMovieDetail(categoryVodMovies[selectedRelatedMovieIndex])
                 }
