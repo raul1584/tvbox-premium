@@ -315,13 +315,27 @@ class MainActivity : Activity() {
 
 
 // =============================================================
-// SESIÓN XTREAM
+// SESIÓN XTREAM Y MODELOS TV
 // =============================================================
 
 data class XtreamSession(
     val serverUrl: String,
     val username: String,
     val password: String
+)
+
+data class LiveCategory(
+    val categoryId: String,
+    val categoryName: String
+)
+
+data class LiveChannel(
+    val streamId: Int,
+    val name: String,
+    val icon: String,
+    val categoryId: String,
+    val streamType: String,
+    val extension: String
 )
 
 
@@ -937,6 +951,10 @@ class HomeView(
     private val paint =
         Paint(Paint.ANTI_ALIAS_FLAG)
 
+    init {
+        loadLiveData()
+    }
+
     // =========================================================
     // NAVEGACIÓN
     // =========================================================
@@ -961,7 +979,7 @@ class HomeView(
     private var movieScroll = 0f
 
     // =========================================================
-    // DATOS DEMO
+    // DATOS TV REALES Y DEMO PELÍCULAS
     // =========================================================
 
     private val sections =
@@ -975,16 +993,16 @@ class HomeView(
         )
 
     private val channels =
-        arrayOf(
-            "TNT Sports",
-            "ESPN",
-            "CHV",
-            "TVN",
-            "Mega",
-            "Canal 13",
-            "Discovery",
-            "HBO"
-        )
+        mutableListOf<String>()
+
+    private val liveChannels =
+        mutableListOf<LiveChannel>()
+
+    private val liveCategories =
+        mutableListOf<LiveCategory>()
+
+    private var loadingLive = true
+    private var liveError = ""
 
     private val movies =
         arrayOf(
@@ -997,6 +1015,260 @@ class HomeView(
             "Interstellar",
             "Avatar"
         )
+
+    // =========================================================
+    // CARGA TV REAL DESDE XTREAM
+    // =========================================================
+
+    private fun loadLiveData() {
+
+        loadingLive = true
+        liveError = ""
+
+        invalidate()
+
+        Thread {
+
+            try {
+
+                val categoriesJson =
+                    httpGet(
+                        session.serverUrl +
+                                "/player_api.php" +
+                                "?username=" +
+                                URLEncoder.encode(
+                                    session.username,
+                                    "UTF-8"
+                                ) +
+                                "&password=" +
+                                URLEncoder.encode(
+                                    session.password,
+                                    "UTF-8"
+                                ) +
+                                "&action=get_live_categories"
+                    )
+
+                val streamsJson =
+                    httpGet(
+                        session.serverUrl +
+                                "/player_api.php" +
+                                "?username=" +
+                                URLEncoder.encode(
+                                    session.username,
+                                    "UTF-8"
+                                ) +
+                                "&password=" +
+                                URLEncoder.encode(
+                                    session.password,
+                                    "UTF-8"
+                                ) +
+                                "&action=get_live_streams"
+                    )
+
+                val categoriesArray =
+                    org.json.JSONArray(
+                        categoriesJson
+                    )
+
+                val streamsArray =
+                    org.json.JSONArray(
+                        streamsJson
+                    )
+
+                val categoriesResult =
+                    mutableListOf<LiveCategory>()
+
+                for (
+                    i in 0 until categoriesArray.length()
+                ) {
+
+                    val item =
+                        categoriesArray.optJSONObject(i)
+                            ?: continue
+
+                    categoriesResult.add(
+                        LiveCategory(
+                            categoryId =
+                                item.optString(
+                                    "category_id"
+                                ),
+                            categoryName =
+                                item.optString(
+                                    "category_name",
+                                    "Sin categoría"
+                                )
+                        )
+                    )
+                }
+
+                val streamsResult =
+                    mutableListOf<LiveChannel>()
+
+                for (
+                    i in 0 until streamsArray.length()
+                ) {
+
+                    val item =
+                        streamsArray.optJSONObject(i)
+                            ?: continue
+
+                    val streamId =
+                        item.optInt(
+                            "stream_id",
+                            -1
+                        )
+
+                    if (streamId <= 0) {
+                        continue
+                    }
+
+                    val name =
+                        item.optString(
+                            "name",
+                            "Canal"
+                        )
+
+                    val icon =
+                        item.optString(
+                            "stream_icon",
+                            ""
+                        )
+
+                    val categoryId =
+                        item.optString(
+                            "category_id",
+                            ""
+                        )
+
+                    val streamType =
+                        item.optString(
+                            "stream_type",
+                            "live"
+                        )
+
+                    val extension =
+                        item.optString(
+                            "container_extension",
+                            "ts"
+                        )
+
+                    streamsResult.add(
+                        LiveChannel(
+                            streamId = streamId,
+                            name = name,
+                            icon = icon,
+                            categoryId = categoryId,
+                            streamType = streamType,
+                            extension = extension
+                        )
+                    )
+                }
+
+                post {
+
+                    liveCategories.clear()
+                    liveCategories.addAll(
+                        categoriesResult
+                    )
+
+                    liveChannels.clear()
+                    liveChannels.addAll(
+                        streamsResult
+                    )
+
+                    channels.clear()
+
+                    channels.addAll(
+                        liveChannels.map {
+                            it.name
+                        }
+                    )
+
+                    loadingLive = false
+                    liveError = ""
+
+                    selectedCard = 0
+                    tvScroll = 0f
+
+                    invalidate()
+                }
+
+            } catch (e: Exception) {
+
+                post {
+
+                    loadingLive = false
+
+                    liveError =
+                        e.message
+                            ?: "No se pudo cargar TV"
+
+                    channels.clear()
+
+                    invalidate()
+                }
+            }
+
+        }.start()
+    }
+
+    private fun httpGet(
+        requestUrl: String
+    ): String {
+
+        var connection:
+                HttpURLConnection? = null
+
+        try {
+
+            val url =
+                URL(requestUrl)
+
+            connection =
+                url.openConnection()
+                        as HttpURLConnection
+
+            connection.requestMethod =
+                "GET"
+
+            connection.connectTimeout =
+                10000
+
+            connection.readTimeout =
+                15000
+
+            connection.instanceFollowRedirects =
+                true
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
+            )
+
+            val responseCode =
+                connection.responseCode
+
+            if (
+                responseCode !in 200..299
+            ) {
+
+                throw Exception(
+                    "HTTP $responseCode"
+                )
+            }
+
+            return connection
+                .inputStream
+                .bufferedReader()
+                .use {
+                    it.readText()
+                }
+
+        } finally {
+
+            connection?.disconnect()
+        }
+    }
 
     // =========================================================
     // RESPONSIVE
@@ -1824,6 +2096,50 @@ class HomeView(
         paint.isFakeBoldText =
             false
 
+        if (loadingLive) {
+
+            paint.color =
+                Color.rgb(
+                    110,
+                    140,
+                    165
+                )
+
+            paint.textSize =
+                13f * scale
+
+            canvas.drawText(
+                "Cargando canales reales...",
+                contentLeft + 135f * scale,
+                titleY,
+                paint
+            )
+
+            return
+        }
+
+        if (liveError.isNotEmpty()) {
+
+            paint.color =
+                Color.rgb(
+                    255,
+                    105,
+                    105
+                )
+
+            paint.textSize =
+                13f * scale
+
+            canvas.drawText(
+                "Error TV: $liveError",
+                contentLeft + 135f * scale,
+                titleY,
+                paint
+            )
+
+            return
+        }
+
         canvas.drawText(
             "Canales disponibles",
             contentLeft + 135f * scale,
@@ -2329,7 +2645,7 @@ class HomeView(
                         tvScroll =
                             tvScroll.coerceIn(
                                 0f,
-                                900f * scale
+                                max(0f, (channels.size * 220f * scale) - contentWidth)
                             )
 
                     } else if (
