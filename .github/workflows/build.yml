@@ -36,8 +36,31 @@ jobs:
       - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Comprobar Gradle y acceso a Gradle 8.9
+        run: |
+          echo "===== VERSION DE GRADLE ====="
+          gradle --version
+
+          echo
+          echo "===== COMPROBANDO GRADLE 8.9 ====="
+          curl -I -L --max-time 30 https://services.gradle.org/distributions/gradle-8.9-bin.zip
+
+      - name: Crear Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version 8.9 --distribution-type bin
+
       - name: Dar permisos al Gradle Wrapper
         run: chmod +x gradlew
+
+      - name: Verificar Gradle Wrapper
+        run: |
+          echo "===== ARCHIVOS DEL WRAPPER ====="
+          ls -la gradlew
+          ls -la gradle/wrapper/
+
+          echo
+          echo "===== VERSION DEL WRAPPER ====="
+          ./gradlew --version
 
       - name: Compilar APK Debug
         run: ./gradlew assembleDebug
