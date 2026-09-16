@@ -823,7 +823,7 @@ class PremiumView(
     }
 
     // ============================================================
-    // VOD CATEGORIAS, PELICULAS Y DETALLE DETALLADO
+    // VOD CATEGORIAS, PELICULAS Y DETALLE
     // ============================================================
 
     private fun openVod() {
@@ -1087,7 +1087,7 @@ class PremiumView(
     }
 
     // ============================================================
-    // GESTOS TOUCH
+    // GESTOS TOUCH (SOPORTE COMPLETO TV Y CELULAR)
     // ============================================================
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -1108,16 +1108,32 @@ class PremiumView(
                     isDragging = true
                 }
 
-                if (screen == Screen.TV_CATEGORIES) {
-                    if (abs(dy) > abs(dx)) {
-                        categoryScroll = clampCategoryScroll(categoryScroll - dy)
-                        invalidate()
+                when (screen) {
+                    Screen.TV_CATEGORIES -> {
+                        if (abs(dy) > abs(dx)) {
+                            categoryScroll = clampCategoryScroll(categoryScroll - dy)
+                            invalidate()
+                        }
                     }
-                } else if (screen == Screen.TV_CHANNELS) {
-                    if (abs(dy) > abs(dx)) {
-                        channelScroll = clampChannelScroll(channelScroll - dy)
-                        invalidate()
+                    Screen.TV_CHANNELS -> {
+                        if (abs(dy) > abs(dx)) {
+                            channelScroll = clampChannelScroll(channelScroll - dy)
+                            invalidate()
+                        }
                     }
+                    Screen.VOD_CATEGORIES -> {
+                        if (abs(dy) > abs(dx)) {
+                            vodCategoryScroll = clampVodCategoryScroll(vodCategoryScroll - dy)
+                            invalidate()
+                        }
+                    }
+                    Screen.VOD_MOVIES -> {
+                        if (abs(dy) > abs(dx)) {
+                            vodMovieScroll = clampVodMovieScroll(vodMovieScroll - dy)
+                            invalidate()
+                        }
+                    }
+                    else -> {}
                 }
 
                 lastTouchX = event.x
@@ -1204,7 +1220,81 @@ class PremiumView(
                     }
                 }
             }
-            else -> {}
+            Screen.VOD_CATEGORIES -> {
+                val columns = categoryColumns()
+                val cardWidth = categoryCardWidth(columns)
+                val cardHeight = if (isMobile()) dp(138f) else dp(145f)
+                val gap = if (isMobile()) dp(12f) else dp(18f)
+                val startX = if (isMobile()) dp(16f) else dp(30f)
+                val startY = dp(150f) - vodCategoryScroll
+
+                vodCategories.forEachIndexed { index, _ ->
+                    val row = index / columns
+                    val col = index % columns
+                    val left = startX + col * (cardWidth + gap)
+                    val top = startY + row * (cardHeight + gap)
+
+                    if (RectF(left, top, left + cardWidth, top + cardHeight).contains(x, y)) {
+                        selectedVodCategoryIndex = index
+                        openSelectedVodCategory()
+                        return
+                    }
+                }
+            }
+            Screen.VOD_MOVIES -> {
+                val columns = categoryColumns() + 1
+                val cardWidth = categoryCardWidth(columns)
+                val cardHeight = cardWidth * 1.45f
+                val gap = dp(14f)
+                val startX = if (isMobile()) dp(16f) else dp(30f)
+                val startY = dp(90f) - vodMovieScroll
+
+                categoryVodMovies.forEachIndexed { index, movie ->
+                    val row = index / columns
+                    val col = index % columns
+                    val left = startX + col * (cardWidth + gap)
+                    val top = startY + row * (cardHeight + gap)
+
+                    if (RectF(left, top, left + cardWidth, top + cardHeight).contains(x, y)) {
+                        selectedVodMovieIndex = index
+                        openVodMovieDetail(movie)
+                        return
+                    }
+                }
+            }
+            Screen.VOD_MOVIE_DETAIL -> {
+                val btnPlayLeft = dp(235f)
+                val btnPlayTop = dp(270f)
+                val btnPlayRight = btnPlayLeft + dp(180f)
+                val btnPlayBottom = btnPlayTop + dp(48f)
+
+                if (RectF(btnPlayLeft, btnPlayTop, btnPlayRight, btnPlayBottom).contains(x, y)) {
+                    detailFocusedElement = 0
+                    val detail = currentMovieDetail
+                    if (detail != null && session != null) {
+                        Toast.makeText(context, "Reproduciendo: ${detail.title}", Toast.LENGTH_LONG).show()
+                    }
+                    invalidate()
+                    return
+                }
+
+                val relCardW = dp(90f)
+                val relCardH = dp(125f)
+                val relGap = dp(15f)
+
+                categoryVodMovies.take(8).forEachIndexed { idx, movie ->
+                    val rLeft = dp(35f) + idx * (relCardW + relGap)
+                    val rTop = dp(385f)
+                    val rect = RectF(rLeft, rTop, rLeft + relCardW, rTop + relCardH)
+
+                    if (rect.contains(x, y)) {
+                        detailFocusedElement = 1
+                        selectedRelatedMovieIndex = idx
+                        openVodMovieDetail(movie)
+                        return
+                    }
+                }
+            }
         }
     }
 
@@ -1686,6 +1776,29 @@ class PremiumView(
         val rows = (categoryChannels.size + columns - 1) / columns
         val contentHeight = rows * (cardHeight + gap)
         val viewport = height - dp(145f) - dp(15f)
+        val maxScroll = max(0f, contentHeight - viewport)
+        return value.coerceIn(0f, maxScroll)
+    }
+
+    private fun clampVodCategoryScroll(value: Float): Float {
+        val columns = categoryColumns()
+        val cardHeight = if (isMobile()) dp(138f) else dp(145f)
+        val gap = if (isMobile()) dp(12f) else dp(18f)
+        val rows = (vodCategories.size + columns - 1) / columns
+        val contentHeight = rows * (cardHeight + gap)
+        val viewport = height - dp(150f) - dp(15f)
+        val maxScroll = max(0f, contentHeight - viewport)
+        return value.coerceIn(0f, maxScroll)
+    }
+
+    private fun clampVodMovieScroll(value: Float): Float {
+        val columns = categoryColumns() + 1
+        val cardWidth = categoryCardWidth(columns)
+        val cardHeight = cardWidth * 1.45f
+        val gap = dp(14f)
+        val rows = (categoryVodMovies.size + columns - 1) / columns
+        val contentHeight = rows * (cardHeight + gap)
+        val viewport = height - dp(90f) - dp(15f)
         val maxScroll = max(0f, contentHeight - viewport)
         return value.coerceIn(0f, maxScroll)
     }
