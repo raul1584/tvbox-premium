@@ -1,4 +1,3 @@
-```kotlin
 package com.tvboxpremium
 
 import android.app.Activity
@@ -7,12 +6,12 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.Toast
+
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -24,9 +23,11 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
+
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 
 @UnstableApi
 class PlayerActivity : Activity() {
@@ -37,7 +38,7 @@ class PlayerActivity : Activity() {
     private var vlcPlayer: MediaPlayer? = null
 
     private lateinit var playerView: PlayerView
-    private lateinit var vlcSurface: SurfaceView
+    private lateinit var vlcVideoLayout: VLCVideoLayout
     private lateinit var progressBar: ProgressBar
 
     private var streamUrl: String = ""
@@ -61,34 +62,38 @@ class PlayerActivity : Activity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
 
-        streamUrl =
-            intent.getStringExtra("STREAM_URL")
-                ?.trim()
-                .orEmpty()
+        streamUrl = intent
+            .getStringExtra("STREAM_URL")
+            ?.trim()
+            .orEmpty()
 
-        streamTitle =
-            intent.getStringExtra("STREAM_TITLE")
-                ?.trim()
-                ?: "Reproduciendo"
+        streamTitle = intent
+            .getStringExtra("STREAM_TITLE")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "Reproduciendo"
 
-        userAgent =
-            intent.getStringExtra("STREAM_USER_AGENT")
-                ?.takeIf { it.isNotBlank() }
-                ?: "VLC/3.0.21"
+        userAgent = intent
+            .getStringExtra("STREAM_USER_AGENT")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "VLC/3.0.21"
 
-        referer =
-            intent.getStringExtra("STREAM_REFERER")
-                ?.takeIf { it.isNotBlank() }
+        referer = intent
+            .getStringExtra("STREAM_REFERER")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
 
-        origin =
-            intent.getStringExtra("STREAM_ORIGIN")
-                ?.takeIf { it.isNotBlank() }
+        origin = intent
+            .getStringExtra("STREAM_ORIGIN")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
 
         if (streamUrl.isEmpty()) {
             Toast.makeText(
                 this,
                 "URL no válida",
-                Toast.LENGTH_SHORT
+                Toast.LENGTH_LONG
             ).show()
 
             finish()
@@ -113,8 +118,11 @@ class PlayerActivity : Activity() {
         playerView = PlayerView(this).apply {
             useController = true
             keepScreenOn = true
-            visibility =
-                if (isLive) View.GONE else View.VISIBLE
+            visibility = if (isLive) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
         }
 
         root.addView(
@@ -125,14 +133,17 @@ class PlayerActivity : Activity() {
             )
         )
 
-        vlcSurface = SurfaceView(this).apply {
+        vlcVideoLayout = VLCVideoLayout(this).apply {
             keepScreenOn = true
-            visibility =
-                if (isLive) View.VISIBLE else View.GONE
+            visibility = if (isLive) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
         }
 
         root.addView(
-            vlcSurface,
+            vlcVideoLayout,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -141,13 +152,12 @@ class PlayerActivity : Activity() {
 
         progressBar = ProgressBar(this)
 
-        val progressParams =
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+        val progressParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
 
         root.addView(
             progressBar,
@@ -166,13 +176,11 @@ class PlayerActivity : Activity() {
         }
     }
 
-    // =========================================================
-    // LIVE - LIBVLC
-    // =========================================================
-
     private fun initVlcPlayer() {
 
-        if (vlcPlayer != null) return
+        if (vlcPlayer != null) {
+            return
+        }
 
         progressBar.visibility = View.VISIBLE
 
@@ -199,24 +207,33 @@ class PlayerActivity : Activity() {
 
                 when (event.type) {
 
-                    MediaPlayer.Event.Playing -> {
-                        progressBar.visibility =
-                            View.GONE
+                    MediaPlayer.Event.Opening -> {
+                        progressBar.visibility = View.VISIBLE
                     }
 
                     MediaPlayer.Event.Buffering -> {
-                        progressBar.visibility =
-                            View.VISIBLE
+                        progressBar.visibility = View.VISIBLE
+                    }
+
+                    MediaPlayer.Event.Playing -> {
+                        progressBar.visibility = View.GONE
+                    }
+
+                    MediaPlayer.Event.Paused -> {
+                        progressBar.visibility = View.GONE
+                    }
+
+                    MediaPlayer.Event.Stopped -> {
+                        progressBar.visibility = View.GONE
                     }
 
                     MediaPlayer.Event.EndReached -> {
-                        progressBar.visibility =
-                            View.GONE
+                        progressBar.visibility = View.GONE
                     }
 
                     MediaPlayer.Event.EncounteredError -> {
-                        progressBar.visibility =
-                            View.GONE
+
+                        progressBar.visibility = View.GONE
 
                         Toast.makeText(
                             this,
@@ -229,17 +246,16 @@ class PlayerActivity : Activity() {
         }
 
         vlcPlayer?.attachViews(
-            vlcSurface,
+            vlcVideoLayout,
             null,
             false,
             false
         )
 
-        val media =
-            Media(
-                libVLC,
-                streamUrl
-            )
+        val media = Media(
+            libVLC,
+            streamUrl
+        )
 
         media.addOption(
             ":network-caching=1000"
@@ -284,13 +300,13 @@ class PlayerActivity : Activity() {
         vlcPlayer?.play()
     }
 
-    // =========================================================
-    // VOD - MEDIA3
-    // =========================================================
-
     private fun initMedia3Player() {
 
-        if (exoPlayer != null) return
+        if (exoPlayer != null) {
+            return
+        }
+
+        progressBar.visibility = View.VISIBLE
 
         val renderersFactory =
             DefaultRenderersFactory(this).apply {
@@ -310,8 +326,7 @@ class PlayerActivity : Activity() {
                 .setConnectTimeoutMs(15000)
                 .setReadTimeoutMs(30000)
 
-        val headers =
-            mutableMapOf<String, String>()
+        val headers = mutableMapOf<String, String>()
 
         referer?.let {
             headers["Referer"] = it
@@ -327,87 +342,64 @@ class PlayerActivity : Activity() {
             )
         }
 
-        val mediaSource =
-            createMediaSource(
-                streamUrl,
-                httpFactory
-            )
+        val mediaSource = createMediaSource(
+            streamUrl,
+            httpFactory
+        )
 
-        exoPlayer =
-            ExoPlayer.Builder(
-                this,
-                renderersFactory
-            )
-                .build()
-                .apply {
+        exoPlayer = ExoPlayer.Builder(
+            this,
+            renderersFactory
+        )
+            .build()
+            .apply {
 
-                    setMediaSource(
-                        mediaSource
-                    )
+                setMediaSource(mediaSource)
 
-                    playWhenReady = true
+                playWhenReady = true
 
-                    addListener(
-                        object : Player.Listener {
+                addListener(
+                    object : Player.Listener {
 
-                            override fun onPlaybackStateChanged(
-                                playbackState: Int
-                            ) {
+                        override fun onPlaybackStateChanged(
+                            playbackState: Int
+                        ) {
 
-                                when (
-                                    playbackState
-                                ) {
+                            when (playbackState) {
 
-                                    Player.STATE_BUFFERING -> {
-                                        progressBar.visibility =
-                                            View.VISIBLE
-                                    }
-
-                                    Player.STATE_READY,
-                                    Player.STATE_ENDED -> {
-                                        progressBar.visibility =
-                                            View.GONE
-                                    }
-                                }
-                            }
-
-                            override fun onIsLoadingChanged(
-                                isLoading: Boolean
-                            ) {
-
-                                if (
-                                    exoPlayer?.playbackState ==
-                                    Player.STATE_BUFFERING
-                                ) {
-
+                                Player.STATE_BUFFERING -> {
                                     progressBar.visibility =
-                                        if (isLoading) {
-                                            View.VISIBLE
-                                        } else {
-                                            View.GONE
-                                        }
+                                        View.VISIBLE
                                 }
-                            }
 
-                            override fun onPlayerError(
-                                error: PlaybackException
-                            ) {
+                                Player.STATE_READY -> {
+                                    progressBar.visibility =
+                                        View.GONE
+                                }
 
-                                progressBar.visibility =
-                                    View.GONE
-
-                                showPlaybackError(
-                                    error
-                                )
+                                Player.STATE_ENDED -> {
+                                    progressBar.visibility =
+                                        View.GONE
+                                }
                             }
                         }
-                    )
 
-                    prepare()
-                }
+                        override fun onPlayerError(
+                            error: PlaybackException
+                        ) {
 
-        playerView.player =
-            exoPlayer
+                            progressBar.visibility =
+                                View.GONE
+
+                            showPlaybackError(error)
+                        }
+                    }
+                )
+
+                prepare()
+            }
+
+        playerView.player = exoPlayer
     }
 
     private fun createMediaSource(
@@ -415,47 +407,33 @@ class PlayerActivity : Activity() {
         httpFactory: DefaultHttpDataSource.Factory
     ): MediaSource {
 
-        val lowerUrl =
-            url.lowercase()
+        val lowerUrl = url.lowercase()
 
         val isHls =
             lowerUrl.contains(".m3u8") ||
-            lowerUrl.contains("m3u8?")
+            lowerUrl.contains("m3u8?") ||
+            lowerUrl.contains("/hls/")
 
-        val mediaItem =
-            MediaItem.fromUri(url)
+        val mediaItem = MediaItem.fromUri(url)
 
         return if (isHls) {
 
-            HlsMediaSource.Factory(
-                httpFactory
-            )
+            HlsMediaSource.Factory(httpFactory)
                 .setAllowChunklessPreparation(false)
-                .createMediaSource(
-                    mediaItem
-                )
+                .createMediaSource(mediaItem)
 
         } else {
 
-            ProgressiveMediaSource.Factory(
-                httpFactory
-            )
-                .createMediaSource(
-                    mediaItem
-                )
+            ProgressiveMediaSource.Factory(httpFactory)
+                .createMediaSource(mediaItem)
         }
     }
-
-    // =========================================================
-    // ERRORES MEDIA3
-    // =========================================================
 
     private fun showPlaybackError(
         error: PlaybackException
     ) {
 
-        val cause =
-            error.cause
+        val cause = error.cause
 
         val causeText =
             cause?.message
@@ -463,36 +441,35 @@ class PlayerActivity : Activity() {
                 ?: error.message
                 ?: "Error desconocido"
 
-        val message =
-            when (error.errorCode) {
+        val message = when (error.errorCode) {
 
-                PlaybackException
-                    .ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                    "No se pudo conectar al canal"
+            PlaybackException
+                .ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                "No se pudo conectar al canal"
 
-                PlaybackException
-                    .ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-                    "Tiempo de espera agotado"
+            PlaybackException
+                .ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                "Tiempo de espera agotado"
 
-                PlaybackException
-                    .ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                    "El servidor rechazó la conexión"
+            PlaybackException
+                .ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                "El servidor rechazó la conexión"
 
-                PlaybackException
-                    .ERROR_CODE_PARSING_CONTAINER_MALFORMED ->
-                    "Formato de stream no compatible"
+            PlaybackException
+                .ERROR_CODE_PARSING_CONTAINER_MALFORMED ->
+                "Formato de stream no compatible"
 
-                PlaybackException
-                    .ERROR_CODE_DECODER_INIT_FAILED ->
-                    "No se pudo iniciar el decodificador"
+            PlaybackException
+                .ERROR_CODE_DECODER_INIT_FAILED ->
+                "No se pudo iniciar el decodificador"
 
-                PlaybackException
-                    .ERROR_CODE_DECODING_FAILED ->
-                    "Error de decodificación"
+            PlaybackException
+                .ERROR_CODE_DECODING_FAILED ->
+                "Error de decodificación"
 
-                else ->
-                    "Error de reproducción"
-            }
+            else ->
+                "Error de reproducción"
+        }
 
         Toast.makeText(
             this,
@@ -501,42 +478,50 @@ class PlayerActivity : Activity() {
         ).show()
     }
 
-    // =========================================================
-    // LIBERACIÓN
-    // =========================================================
-
     private fun releasePlayer() {
 
-        vlcPlayer?.let {
+        vlcPlayer?.let { player ->
 
             try {
-                it.stop()
+                player.stop()
             } catch (_: Exception) {
             }
 
             try {
-                it.detachViews()
+                player.detachViews()
             } catch (_: Exception) {
             }
 
-            it.release()
+            try {
+                player.release()
+            } catch (_: Exception) {
+            }
         }
 
         vlcPlayer = null
 
-        libVLC?.release()
+        libVLC?.let { vlc ->
+
+            try {
+                vlc.release()
+            } catch (_: Exception) {
+            }
+        }
+
         libVLC = null
 
-        exoPlayer?.release()
+        exoPlayer?.let { player ->
+
+            try {
+                player.release()
+            } catch (_: Exception) {
+            }
+        }
+
         exoPlayer = null
     }
 
-    // =========================================================
-    // CICLO DE VIDA
-    // =========================================================
-
     override fun onStart() {
-
         super.onStart()
 
         if (Build.VERSION.SDK_INT >= 24) {
@@ -545,7 +530,6 @@ class PlayerActivity : Activity() {
     }
 
     override fun onResume() {
-
         super.onResume()
 
         if (
@@ -557,7 +541,6 @@ class PlayerActivity : Activity() {
     }
 
     override fun onPause() {
-
         super.onPause()
 
         if (Build.VERSION.SDK_INT < 24) {
@@ -566,17 +549,12 @@ class PlayerActivity : Activity() {
     }
 
     override fun onStop() {
-
         super.onStop()
 
         if (Build.VERSION.SDK_INT >= 24) {
             releasePlayer()
         }
     }
-
-    // =========================================================
-    // CONTROL REMOTO ANDROID TV
-    // =========================================================
 
     override fun dispatchKeyEvent(
         event: KeyEvent
@@ -586,7 +564,7 @@ class PlayerActivity : Activity() {
             super.dispatchKeyEvent(event)
         } else {
             playerView.dispatchKeyEvent(event) ||
-                    super.dispatchKeyEvent(event)
+                super.dispatchKeyEvent(event)
         }
     }
 
@@ -611,12 +589,12 @@ class PlayerActivity : Activity() {
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
 
-                    vlcPlayer?.let {
+                    vlcPlayer?.let { player ->
 
-                        if (it.isPlaying) {
-                            it.pause()
+                        if (player.isPlaying) {
+                            player.pause()
                         } else {
-                            it.play()
+                            player.play()
                         }
                     }
 
@@ -636,12 +614,12 @@ class PlayerActivity : Activity() {
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
 
-                exoPlayer?.let {
+                exoPlayer?.let { player ->
 
-                    if (it.isPlaying) {
-                        it.pause()
+                    if (player.isPlaying) {
+                        player.pause()
                     } else {
-                        it.play()
+                        player.play()
                     }
                 }
 
@@ -679,4 +657,3 @@ class PlayerActivity : Activity() {
         )
     }
 }
-```
