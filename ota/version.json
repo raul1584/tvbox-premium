@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.3",
+  "versionCode": 5,
+  "versionName": "1.4",
   "mandatory": false,
-  "changelog": "Nuevas mejoras aplicadas en la versión 1.3.",
-  "apkAsset": "TVBOX-Premium-1.3.apk",
-  "sha256": "2c70f19feb62883957c86f179e611200735e79e25bff563b145a4f0daf9c6a53"
+  "changelog": "Mi cuenta, información del usuario, fecha de vencimiento y mejoras de interfaz.",
+  "apkAsset": "TVBOX-Premium-1.4.apk",
+  "sha256": "0FA8BD85ABDFC2A2685ED448E79CCC9ACF63DB2C3B9EC2D894B70BC02AD76C7E"
 }
