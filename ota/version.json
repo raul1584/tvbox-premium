@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
-  "mandatory": false,
-  "changelog": "Prueba de actualización OTA.",
-  "apkAsset": "TVBOX-Premium-1.2.apk",
-  "sha256": "CF5C4FA8A64E2E6447638782AAE30A3CF5DC80D0091A65EE4B62551B0180A83D"
+"versionCode": 4,
+"versionName": "1.3",
+"mandatory": false,
+"changelog": "Interfaz adaptativa para teléfonos y Android TV de diferentes tamaños de pantalla.",
+"apkAsset": "TVBOX-Premium-1.3.apk",
+"sha256": "2C70F19FEB62883957C86F179E611200735E79E25BFF563B145A4F0DAF9C6A53"
 }
