@@ -1,8 +1,8 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
+  "versionCode": 6,
+  "versionName": "1.5",
   "mandatory": false,
-  "changelog": "Mi cuenta, información del usuario, fecha de vencimiento y mejoras de interfaz.",
-  "apkAsset": "TVBOX-Premium-1.4.apk",
-  "sha256": "940D2975133F316F4C2BFF192EEB6E272ADCFDC015893C10BA0A70C3F2DB886C"
+  "changelog": "Nuevo Home VOD, última película destacada, categorías optimizadas, menú lateral y mejoras de rendimiento para dispositivos de gama baja.",
+  "apkAsset": "TVBOX-Premium-1.5.apk",
+  "sha256": "EE3CB5A2B38E9CCEAE838071C72DA4DE09FBAC0F72D8B8C8456A0399BAD4E8FE"
 }
