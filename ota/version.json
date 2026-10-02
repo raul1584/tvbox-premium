@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8",
+  "versionCode": 10,
+  "versionName": "1.9",
   "mandatory": false,
-  "changelog": "Nuevo Home cinematográfico, carrusel de películas tipo Cover Flow y mejoras visuales para navegación en TV.",
-  "apkAsset": "TVBOX-Premium-1.8.apk",
-  "sha256": "E990779BDA47AD85208B1338A6AE13C8E1B911178880096D5D61FA8773A77CC5"
+  "changelog": "Nueva interfaz Home en negro y dorado, navegación superior y Live TV con diseño moderno.",
+  "apkAsset": "TVBOX-Premium-1.9.apk",
+  "sha256": "7D90586B9FAB269D93B85899093D7749BB3E9CC9B94F256238625D93A6BB3834"
 }
