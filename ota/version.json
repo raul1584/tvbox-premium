@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
+  "versionCode": 8,
+  "versionName": "1.7",
   "mandatory": false,
-  "changelog": "Nuevo diseño visual, estrenos, mejores películas y selección real de la última película agregada.",
-  "apkAsset": "TVBOX-Premium-1.6.apk",
-  "sha256": "B067C829C9B8D6AAF5D76CFDA38EF970767243ABBB4ED1C5B387FCAA4E341239"
+  "changelog": "Continuar viendo con reanudación automática, nuevo comportamiento del reproductor y controles bajo demanda con OK.",
+  "apkAsset": "TVBOX-Premium-1.7.apk",
+  "sha256": "9DA7CB64A8C9E8509016AB850FAB5331CC5D1079EC401450FEC2D994CEECC319"
 }
