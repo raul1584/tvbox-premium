@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "1.16",
+  "versionCode": 18,
+  "versionName": "1.17",
   "mandatory": false,
-  "changelog": "Mejoras visuales en TV en Vivo, overlay semitransparente unificado, categorías sin fondos opacos y eliminación de elementos de diagnóstico.",
-  "apkAsset": "TVBOX-Premium-1.16.apk",
-  "sha256": "A1FB3FB2FF48787165AE4445D8D99717B3AEFAD3285116719DA4EB379F0520D8"
+  "changelog": "Mejoras visuales en TV en Vivo, categorías y canales integrados sobre un único overlay semitransparente, logos sin fondos negros individuales y foco D-pad optimizado.",
+  "apkAsset": "TVBOX-Premium-1.17.apk",
+  "sha256": "A912283B133094EE3E0ED4C2E9D8CF7F18D39236474D26758866616A6B9745D3"
 }
