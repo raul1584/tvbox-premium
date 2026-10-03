@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "1.10",
+  "versionCode": 12,
+  "versionName": "1.11",
   "mandatory": false,
-  "changelog": "Nueva experiencia de TV en Vivo con entrada directa a MEGA I ONLINE CHILE TV, categorías mediante overlay transparente sobre la programación, navegación D-Pad optimizada, logos completos y Cover Flow ampliado a 20 películas.",
-  "apkAsset": "TVBOX-Premium-1.10.apk",
-  "sha256": "F483542396BD41FEC427A2B1F3EE305D7EE789E09AEAD9CB73E95F34AE6509AC"
+  "changelog": "Mejoras y correcciones del sistema de actualización OTA, manteniendo intactos el Home, Cover Flow, TV en Vivo, VOD y reproductor.",
+  "apkAsset": "TVBOX-Premium-1.11.apk",
+  "sha256": "128c46a4749b4d0b28c5e756749a7d09fce2b57c85bb3a287b0f4cdbc501b76a"
 }
