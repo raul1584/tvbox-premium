@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
+  "versionCode": 11,
+  "versionName": "1.10",
   "mandatory": false,
-  "changelog": "Nueva interfaz Home en negro y dorado, navegación superior y Live TV con diseño moderno.",
-  "apkAsset": "TVBOX-Premium-1.9.apk",
-  "sha256": "7D90586B9FAB269D93B85899093D7749BB3E9CC9B94F256238625D93A6BB3834"
+  "changelog": "Nueva experiencia de TV en Vivo con entrada directa a MEGA I ONLINE CHILE TV, categorías mediante overlay transparente sobre la programación, navegación D-Pad optimizada, logos completos y Cover Flow ampliado a 20 películas.",
+  "apkAsset": "TVBOX-Premium-1.10.apk",
+  "sha256": "F483542396BD41FEC427A2B1F3EE305D7EE789E09AEAD9CB73E95F34AE6509AC"
 }
