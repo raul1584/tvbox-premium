@@ -1,8 +1,8 @@
 {
-  "versionCode": 13,
-  "versionName": "1.12",
+  "versionCode": 16,
+  "versionName": "1.15",
   "mandatory": false,
-  "changelog": "Nueva interfaz de TV en Vivo con categorías mediante overlay semitransparente sobre la programación, logos completos sobre superficie blanca y navegación D-Pad optimizada.",
-  "apkAsset": "TVBOX-Premium-1.12.apk",
-  "sha256": "205E7E29B297CD6657FDD1B92E8A5B1E86787D867E8CEDA47661FB3EC5D17347"
+  "changelog": "Mejoras en la interfaz de TV en Vivo, overlay semitransparente de categorías y canales, manteniendo la reproducción a pantalla completa y la navegación D-Pad.",
+  "apkAsset": "TVBOX-Premium-1.15.apk",
+  "sha256": "021A7AD68011E65959CC1BFC86659C73939F8F2AD62E6CAE11E759D791D239B9"
 }
