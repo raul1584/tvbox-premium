@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "1.11",
+  "versionCode": 13,
+  "versionName": "1.12",
   "mandatory": false,
-  "changelog": "Mejoras y correcciones del sistema de actualización OTA, manteniendo intactos el Home, Cover Flow, TV en Vivo, VOD y reproductor.",
-  "apkAsset": "TVBOX-Premium-1.11.apk",
-  "sha256": "128c46a4749b4d0b28c5e756749a7d09fce2b57c85bb3a287b0f4cdbc501b76a"
+  "changelog": "Nueva interfaz de TV en Vivo con categorías mediante overlay semitransparente sobre la programación, logos completos sobre superficie blanca y navegación D-Pad optimizada.",
+  "apkAsset": "TVBOX-Premium-1.12.apk",
+  "sha256": "205E7E29B297CD6657FDD1B92E8A5B1E86787D867E8CEDA47661FB3EC5D17347"
 }
