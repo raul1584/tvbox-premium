@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "1.18",
+  "versionCode": 20,
+  "versionName": "1.19",
   "mandatory": false,
-  "changelog": "Home optimizado, Cover Flow ampliado hasta 25 películas y nueva posición de Continuar viendo debajo del carrusel y antes de Estrenos.",
-  "apkAsset": "TVBOX-Premium-1.18.apk",
-  "sha256": "3495EE962D93A5429096E1C700A13E55CAB271924F064B32E6DA683C82E529D2"
+  "changelog": "Nuevo fondo cinematográfico adaptativo en Login, Home y VOD, Home optimizado sin canales destacados en vivo y mejoras visuales manteniendo el rendimiento en dispositivos de gama baja.",
+  "apkAsset": "TVBOX-Premium-1.19.apk",
+  "sha256": "290d51bbbec6d9c5a3e89dc36d209aac7e752bfc62e8eb257df4848c908025dd"
 }
