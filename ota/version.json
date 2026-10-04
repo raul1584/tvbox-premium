@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "1.19",
+  "versionCode": 21,
+  "versionName": "1.20",
   "mandatory": false,
-  "changelog": "Nuevo fondo cinematográfico adaptativo en Login, Home y VOD, Home optimizado sin canales destacados en vivo y mejoras visuales manteniendo el rendimiento en dispositivos de gama baja.",
-  "apkAsset": "TVBOX-Premium-1.19.apk",
-  "sha256": "290d51bbbec6d9c5a3e89dc36d209aac7e752bfc62e8eb257df4848c908025dd"
+  "changelog": "Mejoras en Login con fondo cinematográfico basado en la última película agregada, rotación automática cada 7 días y ocultamiento del campo servidor, manteniendo intactos Home, VOD, Live TV y reproductor.",
+  "apkAsset": "TVBOX-Premium-1.20.apk",
+  "sha256": "bdf999d7cae13de665a1612c5a724a9bd98a68b3ad969cd7aaf753f52b3aebc9"
 }
