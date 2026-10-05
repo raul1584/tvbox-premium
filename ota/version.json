@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "1.20",
+  "versionCode": 22,
+  "versionName": "1.21",
   "mandatory": false,
-  "changelog": "Mejoras en Login con fondo cinematográfico basado en la última película agregada, rotación automática cada 7 días y ocultamiento del campo servidor, manteniendo intactos Home, VOD, Live TV y reproductor.",
-  "apkAsset": "TVBOX-Premium-1.20.apk",
-  "sha256": "ee0723a851b3e7654f5fad4121f8bbc899e7d351f325d022471209fa6be94a84"
+  "changelog": "Mejoras de estabilidad en Live TV mediante recuperación automática ante congelaciones prolongadas de señal HLS, manteniendo intactos Home, VOD, Login y el reproductor.",
+  "apkAsset": "TVBOX-Premium-1.21.apk",
+  "sha256": "D5E10947B6B3EC125FCCD514F1D6060DB88940A746FEA1CA55DAD6038B6F0F8A"
 }
